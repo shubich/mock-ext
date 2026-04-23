@@ -3,6 +3,7 @@
   "name": "Response Mocker (CDP)",
   "version": "0.1.0",
   "description": "Mock HTTP responses (status, headers, body) by intercepting requests via Chrome DevTools Protocol.",
+  "devtools_page": "devtools.html",
   "action": {
     "default_title": "Response Mocker",
     "default_popup": "popup.html"

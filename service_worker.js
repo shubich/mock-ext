@@ -345,6 +345,81 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return sendResponse({ ok: true });
     }
 
+    if (type === "FIND_MATCHING_RULE") {
+      const url = String(msg.url || "");
+      const rules = await getRules();
+      return sendResponse({ ok: true, rule: matchRule(rules, url) || null });
+    }
+
+    if (type === "MATCH_URLS") {
+      const urls = Array.isArray(msg.urls) ? msg.urls : [];
+      const rules = await getRules();
+      const results = urls.map((url) => ({
+        url,
+        rule: matchRule(rules, String(url)) || null
+      }));
+      return sendResponse({ ok: true, results });
+    }
+
+    if (type === "ADD_RULE") {
+      const partial = msg.rule && typeof msg.rule === "object" ? msg.rule : {};
+      const id = partial.id || `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const newRule = {
+        id,
+        enabled: partial.enabled !== false,
+        urlRegex: String(partial.urlRegex || ""),
+        status: Number(partial.status) || 200,
+        headers: partial.headers && typeof partial.headers === "object" ? partial.headers : {},
+        body: partial.body != null ? String(partial.body) : '{\n  "mocked": true\n}\n'
+      };
+      if (!newRule.headers || Object.keys(newRule.headers).length === 0) {
+        newRule.headers = { "Content-Type": "application/json" };
+      }
+      const rules = await getRules();
+      rules.unshift(newRule);
+      await setInStorage({ [STORAGE_KEYS.rules]: rules });
+      return sendResponse({ ok: true, rule: newRule, rules });
+    }
+
+    if (type === "DELETE_RULE") {
+      const { id } = msg;
+      const rules = await getRules();
+      const next = rules.filter((r) => r && r.id !== id);
+      await setInStorage({ [STORAGE_KEYS.rules]: next });
+      return sendResponse({ ok: true, rules: next });
+    }
+
+    if (type === "PATCH_RULE") {
+      const { id, enabled, status, body, urlRegex, headers } = msg;
+      const rules = await getRules();
+      const rule = rules.find((r) => r && r.id === id);
+      if (!rule) {
+        return sendResponse({ ok: false, error: "Rule not found" });
+      }
+      if (typeof enabled === "boolean") rule.enabled = enabled;
+      if (status != null) rule.status = Number(status) || 200;
+      if (body != null) rule.body = String(body);
+      if (urlRegex != null) {
+        const s = String(urlRegex).trim();
+        if (!s) {
+          return sendResponse({ ok: false, error: "URL / pattern cannot be empty" });
+        }
+        rule.urlRegex = s;
+      }
+      if (headers != null) {
+        if (typeof headers !== "object" || Array.isArray(headers) || headers === null) {
+          return sendResponse({ ok: false, error: "headers must be a JSON object" });
+        }
+        const next = {};
+        for (const [k, v] of Object.entries(headers)) {
+          next[String(k)] = String(v);
+        }
+        rule.headers = next;
+      }
+      await setInStorage({ [STORAGE_KEYS.rules]: rules });
+      return sendResponse({ ok: true, rules: await getRules() });
+    }
+
     return sendResponse({ ok: false, error: "Unknown message type" });
   })();
 

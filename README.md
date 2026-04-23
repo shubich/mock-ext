@@ -18,10 +18,10 @@ It uses Chrome DevTools Protocol (`Fetch.fulfillRequest`) via the `chrome.debugg
 ## Use
 
 1. Open the tab you want to mock
-2. Click the extension icon
-3. Toggle **Enable** (Chrome will ask you to allow debugging)
+2. Click the extension icon, **or** open **DevTools** and select the **Response Mocker** tab (same level as **Network** / **Console**).
+3. Toggle **Mock responses for the inspected page tab** (Chrome will ask you to allow debugging)
 4. Add a rule:
-   - **URL regex**: JS RegExp source (without `/.../`), example: `https://api\\.example\\.com/v1/items`
+   - **URL**: paste a **full** `https://...` URL to match it literally, or a regex; prefix with `re:` for a regex, or `lit:` to force a literal.
    - **Status**: e.g. `200`, `404`, `500`
    - **Headers**: JSON object, e.g.
 
@@ -35,6 +35,12 @@ It uses Chrome DevTools Protocol (`Fetch.fulfillRequest`) via the `chrome.debugg
    - **Body**: any text (JSON, HTML, etc.)
 
 Rules are saved automatically into `chrome.storage.local`.
+
+### DevTools panel (pick requests to mock)
+
+With DevTools open on the page, open the **Response Mocker** tab. **Captured requests** are collected while that DevTools window is open. Use the **Filter** field to search URLs. Click **Mock** to add a full-URL rule, or **Edit** on a mocked request. **Active mock rules** includes the same rules as the popup: filter, inline **Status**, **Edit** (body + headers in a modal), enable/disable, and **Delete**. Leaving response headers empty in the editor keeps the existing headers; paste a JSON object to replace them.
+
+**Reload** the extension on `chrome://extensions` after code changes, then close and reopen DevTools if the new tab does not appear.
 
 ## Notes / limitations
 

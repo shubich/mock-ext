@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="devtools_panel.css" />
+  </head>
+  <body>
+    <div class="toolbar">
+      <label class="row">
+        <input id="enabledToggle" type="checkbox" />
+        <span>Mock responses for the inspected page tab</span>
+      </label>
+      <div id="tabIdLine" class="muted small"></div>
+    </div>
+
+    <div id="statusLine" class="status"></div>
+
+    <section class="section">
+      <div class="sectionHeader">
+        <h2>Captured requests</h2>
+        <div class="headerTools">
+          <input
+            type="search"
+            id="capturedFilter"
+            class="search"
+            placeholder="Filter by URL"
+            spellcheck="false"
+            aria-label="Filter captured requests by URL"
+          />
+          <button type="button" class="btn" id="clearCaptured">Clear</button>
+        </div>
+      </div>
+      <p class="hint">
+        Filled as requests complete while this DevTools window is open. Use <strong>Mock</strong> to
+        add a full-URL rule, or <strong>Edit</strong> for an already mocked URL.
+      </p>
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Status</th>
+              <th>URL</th>
+              <th class="thActions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="capturedBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="sectionHeader">
+        <h2>Active mock rules</h2>
+        <div class="headerTools">
+          <input
+            type="search"
+            id="rulesFilter"
+            class="search"
+            placeholder="Filter URL, status, body"
+            spellcheck="false"
+            aria-label="Filter rules"
+          />
+          <button type="button" class="btn" id="refreshRules">Refresh</button>
+        </div>
+      </div>
+      <p class="hint">Edit status inline or use <strong>Edit</strong> for body and headers. Same storage as the popup.</p>
+      <div class="tableWrap tableWrapTall">
+        <table>
+          <thead>
+            <tr>
+              <th>On</th>
+              <th>Status</th>
+              <th>URL / pattern</th>
+              <th class="thActions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rulesBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="ruleModal" class="modal" hidden>
+      <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="editRuleTitle">
+        <h3 id="editRuleTitle" class="modalTitle">Edit mock rule</h3>
+        <label class="field">
+          <div class="label">URL / pattern</div>
+          <input type="text" id="edUrl" class="search full" spellcheck="false" />
+        </label>
+        <div class="fieldRow">
+          <label class="field grow">
+            <div class="label">HTTP status</div>
+            <input type="number" id="edStatus" class="search" min="100" max="599" />
+          </label>
+        </div>
+        <label class="field">
+          <div class="label">Response headers (JSON object)</div>
+          <textarea id="edHeaders" class="ta" rows="4" spellcheck="false"></textarea>
+        </label>
+        <label class="field">
+          <div class="label">Body</div>
+          <textarea id="edBody" class="ta" rows="10" spellcheck="false"></textarea>
+        </label>
+        <div class="modalActions">
+          <button type="button" class="btn" id="edCancel">Cancel</button>
+          <button type="button" class="btn primary" id="edSave">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="devtools_panel.js"></script>
+  </body>
+</html>
