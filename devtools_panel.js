@@ -1,6 +1,61 @@
 /* global chrome */
 
 const MAX_CAPTURED = 200;
+/** Truncate very large response bodies in memory to avoid OOM. */
+const MAX_RESPONSE_BODY = 1_000_000;
+
+const STRIP_RESPONSE_HEADER_NAMES = new Set([
+  "content-encoding",
+  "transfer-encoding",
+  "content-length",
+  "connection",
+  "keep-alive",
+  "trailer",
+  "x-http2-pushed"
+]);
+
+function newCaptureCid() {
+  return `c-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function harHeadersArrayToObject(headers) {
+  const o = {};
+  if (!headers) return o;
+  if (Array.isArray(headers)) {
+    for (const h of headers) {
+      if (h && h.name) o[String(h.name)] = h.value != null ? String(h.value) : "";
+    }
+  } else if (typeof headers === "object") {
+    for (const [k, v] of Object.entries(headers)) {
+      o[String(k)] = v != null ? String(v) : "";
+    }
+  }
+  return o;
+}
+
+/**
+ * Drop hop-by-hop and framing headers so our fulfilled body matches what we show.
+ */
+function stripResponseHeadersForMock(h) {
+  const out = {};
+  for (const [k, v] of Object.entries(h || {})) {
+    if (STRIP_RESPONSE_HEADER_NAMES.has(String(k).toLowerCase())) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function decodeGetContentBody(content, encoding) {
+  if (content == null) return "";
+  if (String(content) === "") return "";
+  if (encoding === "base64") {
+    const binary = atob(String(content).replace(/\s/g, ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  }
+  return String(content);
+}
 
 let inspectedTabId = null;
 let captured = [];
@@ -63,40 +118,138 @@ function getFilteredRules() {
   });
 }
 
-function harEntryToCaptured(entry) {
-  if (!entry || !entry.request) return null;
-  return {
-    method: (entry.request.method || "GET").toUpperCase(),
-    url: String(entry.request.url || ""),
-    status: entry.response && entry.response.status != null ? entry.response.status : 0
-  };
-}
+/**
+ * Full capture record for a finished network request (used when creating a mock from real data).
+ * @typedef {{
+ *  cid: string,
+ *  _key: string,
+ *  method: string,
+ *  url: string,
+ *  status: number,
+ *  resHeaders: Record<string, string>,
+ *  resBody: string | null,
+ *  bodyLoadState: "loading" | "ok" | "empty" | "none" | "error",
+ *  t: number
+ * }} CapturedItem
+ */
 
-function requestFinishedToCaptured(req) {
-  if (!req) return null;
-  const inner = req.request || req;
-  const method = (inner.method || req.method || "GET").toString().toUpperCase();
-  const url = String((inner && inner.url) || req.url || "");
-  const response = req.response || inner.response;
-  const status = response && response.status != null ? response.status : 0;
-  if (!url) return null;
-  return { method, url, status };
-}
-
-function addCapturedEntry(entry) {
-  if (!entry || !entry.url) return;
-  const key = `${entry.method} ${entry.url}`;
+function pushCapturedItem(partial) {
+  if (!partial || !partial.url) return;
+  const method = (partial.method || "GET").toString().toUpperCase();
+  const key = `${method} ${partial.url}`;
   const others = captured.filter((e) => e._key !== key);
-  const next = {
+  const item = {
+    cid: partial.cid || newCaptureCid(),
     _key: key,
-    method: entry.method,
-    url: entry.url,
-    status: entry.status,
+    method,
+    url: String(partial.url),
+    status: Number(partial.status) || 0,
+    resHeaders: partial.resHeaders && typeof partial.resHeaders === "object" ? partial.resHeaders : {},
+    resBody: partial.resBody != null ? String(partial.resBody) : null,
+    bodyLoadState: partial.bodyLoadState || (partial.resBody != null ? "ok" : "empty"),
     t: Date.now()
   };
-  others.unshift(next);
+  others.unshift(item);
   captured = others.slice(0, MAX_CAPTURED);
+  return item;
+}
+
+/**
+ * HAR from getHAR: often includes response.content.text and headers.
+ */
+function harEntryToCapturePayload(entry) {
+  if (!entry || !entry.request) return null;
+  const res = entry.response;
+  if (!res) return null;
+  const method = (entry.request.method || "GET").toUpperCase();
+  const url = String(entry.request.url || "");
+  if (!url) return null;
+  const status = res.status != null ? res.status : 0;
+  const resHeaders = stripResponseHeadersForMock(
+    harHeadersArrayToObject(res.headers)
+  );
+  const content = res.content;
+  let resBody = null;
+  let bodyLoadState = "empty";
+  if (content && content.text) {
+    try {
+      resBody = decodeGetContentBody(content.text, content.encoding);
+      if (resBody.length > MAX_RESPONSE_BODY) {
+        resBody = resBody.slice(0, MAX_RESPONSE_BODY) + "\n\n... [response truncated] ...";
+      }
+      bodyLoadState = resBody.length > 0 ? "ok" : "empty";
+    } catch (e) {
+      resBody = "";
+      bodyLoadState = "error";
+    }
+  }
+  return { method, url, status, resHeaders, resBody, bodyLoadState };
+}
+
+/**
+ * Live request from chrome.devtools.network.onRequestFinished
+ */
+function devtoolsRequestToCaptureBase(req) {
+  if (!req) return null;
+  const inner = req.request || req;
+  const method = (inner.method || "GET").toString().toUpperCase();
+  const url = String((inner && inner.url) || req.url || "");
+  if (!url) return null;
+  const response = req.response;
+  if (!response) {
+    return {
+      method,
+      url,
+      status: 0,
+      resHeaders: {}
+    };
+  }
+  const status = response.status != null ? response.status : 0;
+  const resHeaders = stripResponseHeadersForMock(harHeadersArrayToObject(response.headers));
+  return { method, url, status, resHeaders };
+}
+
+/**
+ * Ingests a new finished request, async-fetches response body via getContent.
+ */
+function ingestDevToolsRequestFinished(req) {
+  const base = devtoolsRequestToCaptureBase(req);
+  if (!base) return;
+  const item = pushCapturedItem({
+    ...base,
+    resBody: null,
+    bodyLoadState: "loading"
+  });
+  if (!item) return;
   scheduleRender();
+
+  if (typeof req.getContent !== "function") {
+    item.bodyLoadState = "none";
+    scheduleRender();
+    return;
+  }
+  try {
+    req.getContent((content, encoding) => {
+      const ent = captured.find((x) => x.cid === item.cid);
+      if (!ent) return;
+      try {
+        const raw = decodeGetContentBody(content, encoding);
+        let body = raw;
+        if (body.length > MAX_RESPONSE_BODY) {
+          body = body.slice(0, MAX_RESPONSE_BODY) + "\n\n... [response truncated] ...";
+        }
+        ent.resBody = body;
+        ent.bodyLoadState = body && body.length > 0 ? "ok" : "empty";
+      } catch (e) {
+        ent.resBody = "";
+        ent.bodyLoadState = "error";
+      }
+      scheduleRender();
+    });
+  } catch (e) {
+    item.bodyLoadState = "error";
+    scheduleRender();
+  }
 }
 
 function scheduleRender() {
@@ -299,14 +452,22 @@ function renderCapturedTable() {
   for (const c of shown) {
     const rule = matchByUrl.get(c.url) || null;
     const tr = document.createElement("tr");
+    const bodyLabel =
+      c.bodyLoadState === "loading"
+        ? " ⏳"
+        : c.bodyLoadState === "error"
+          ? " ⚠"
+          : "";
     const actionCell = rule
       ? `<div class="btnRow"><span class="tag">Mocked</span><button type="button" class="btn sm editFromCap" data-rule-id="${escapeAttr(
           rule.id
         )}">Edit</button></div>`
-      : `<button type="button" class="btn sm mockBtn" data-url="${escapeAttr(c.url)}">Mock</button>`;
+      : `<button type="button" class="btn sm mockBtn" data-cid="${escapeAttr(
+          c.cid
+        )}" title="Create mock from this response (body copies when available)">Mock</button>`;
     tr.innerHTML = `
       <td>${escapeHtml(c.method)}</td>
-      <td>${c.status != null && c.status !== 0 ? escapeHtml(String(c.status)) : "—"}</td>
+      <td>${c.status != null && c.status !== 0 ? escapeHtml(String(c.status)) : "—"}${bodyLabel ? `<span class="bodyHint" title="Response body capture">${bodyLabel}</span>` : ""}</td>
       <td class="urlCell" title="${escapeAttr(c.url)}">${escapeHtml(c.url)}</td>
       <td class="thActions">${actionCell}</td>
     `;
@@ -314,23 +475,44 @@ function renderCapturedTable() {
   }
   for (const b of body.querySelectorAll("button.mockBtn")) {
     b.addEventListener("click", async (e) => {
-      const url = e.target.getAttribute("data-url");
+      const cid = e.target.getAttribute("data-cid");
+      let ent = captured.find((x) => x.cid === cid);
+      if (!ent) return;
+      if (ent.bodyLoadState === "loading") {
+        setStatus("Waiting for response body…", "muted");
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) {
+          ent = captured.find((x) => x.cid === cid);
+          if (!ent) return;
+          if (ent.bodyLoadState !== "loading") break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+      ent = captured.find((x) => x.cid === cid);
+      if (!ent) return;
+      const status = ent.status > 0 ? ent.status : 200;
+      const headers = { ...ent.resHeaders };
+      if (Object.keys(headers).length === 0) {
+        headers["Content-Type"] = "text/plain; charset=utf-8";
+      }
+      const resBody = ent.resBody != null ? ent.resBody : "";
       const res = await sendToBg({
         type: "ADD_RULE",
         rule: {
-          urlRegex: url,
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-          body: '{\n  "mocked": true\n}\n',
+          urlRegex: ent.url,
+          status,
+          headers,
+          body: resBody,
           enabled: true
         }
       });
       if (res?.ok) {
         rulesCache = res.rules || rulesCache;
-        setStatus("Mock rule added for this URL", "ok");
+        setStatus("Mock created from this response — edit below if needed", "ok");
         await refreshMatchMap();
         renderRulesTable();
         renderCapturedTable();
+        if (res.rule) openRuleEditor(res.rule);
       } else {
         setStatus(res?.error || "Add rule failed", "warn");
       }
@@ -357,9 +539,13 @@ function seedFromHar() {
       if (!har || !har.log || !Array.isArray(har.log.entries)) return;
       const entries = har.log.entries.slice(-MAX_CAPTURED);
       for (const e of entries) {
-        const c = harEntryToCaptured(e);
-        if (c) addCapturedEntry(c);
+        const p = harEntryToCapturePayload(e);
+        if (p) {
+          p.cid = newCaptureCid();
+          pushCapturedItem(p);
+        }
       }
+      scheduleRender();
     });
   } catch (e) {
     /* getHAR not available */
@@ -500,8 +686,7 @@ async function main() {
 
   try {
     chrome.devtools.network.onRequestFinished.addListener((req) => {
-      const c = requestFinishedToCaptured(req);
-      if (c) addCapturedEntry(c);
+      ingestDevToolsRequestFinished(req);
     });
   } catch (e) {
     setStatus("Network API not available in this context.", "warn");

@@ -38,7 +38,7 @@ Rules are saved automatically into `chrome.storage.local`.
 
 ### DevTools panel (pick requests to mock)
 
-With DevTools open on the page, open the **Response Mocker** tab. **Captured requests** are collected while that DevTools window is open. Use the **Filter** field to search URLs. Click **Mock** to add a full-URL rule, or **Edit** on a mocked request. **Active mock rules** includes the same rules as the popup: filter, inline **Status**, **Edit** (body + headers in a modal), enable/disable, and **Delete**. Leaving response headers empty in the editor keeps the existing headers; paste a JSON object to replace them.
+With DevTools open on the page, open the **Response Mocker** tab. **Captured requests** are collected while that DevTools window is open. Use the **Filter** field to search URLs. Click **Mock** to add a full-URL rule: it copies the **real response status, headers (framing fields stripped), and body** (loaded asynchronously from DevTools; a short ⏳ next to the status means the body is still loading). The editor opens so you can adjust the data. For **Edit** on an already mocked request, behavior is the same. Leaving response headers empty in the editor keeps the existing headers; paste a JSON object to replace them.
 
 **Reload** the extension on `chrome://extensions` after code changes, then close and reopen DevTools if the new tab does not appear.
 

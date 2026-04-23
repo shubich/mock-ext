@@ -257,6 +257,12 @@ tr:last-child td {
   font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
 }
+.bodyHint {
+  color: var(--muted);
+  font-size: 10px;
+  margin-left: 2px;
+  user-select: none;
+}
 .tag {
   display: inline-block;
   font-size: 10px;
