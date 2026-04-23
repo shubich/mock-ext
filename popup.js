@@ -38,6 +38,15 @@ function parseHeadersJson(text) {
   return out;
 }
 
+function parseUrlMatcherInput(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return { mode: "none", source: "" };
+  if (raw.startsWith("re:")) return { mode: "regex", source: raw.slice(3).trim() };
+  if (raw.startsWith("lit:")) return { mode: "literal", source: raw.slice(4).trim() };
+  if (/^https?:\/\//i.test(raw)) return { mode: "literal", source: raw };
+  return { mode: "regex", source: raw };
+}
+
 function renderRules(rules, onChange) {
   const list = byId("rulesList");
   list.innerHTML = "";
@@ -131,12 +140,20 @@ async function scheduleSave() {
     try {
       const nextRules = collectRulesFromUI(rulesModel);
 
-      // Quick validation: regex must be non-empty & valid when enabled.
+      // Quick validation:
+      // - enabled rule must have non-empty matcher
+      // - if it's regex mode, it must compile
       for (const r of nextRules) {
         if (!r.enabled) continue;
         if (!r.urlRegex) throw new Error("Enabled rule missing URL regex");
-        // eslint-disable-next-line no-new
-        new RegExp(r.urlRegex);
+        const matcher = parseUrlMatcherInput(r.urlRegex);
+        if (matcher.mode === "none" || !matcher.source) {
+          throw new Error("Enabled rule missing URL matcher");
+        }
+        if (matcher.mode === "regex") {
+          // eslint-disable-next-line no-new
+          new RegExp(matcher.source);
+        }
       }
 
       rulesModel = nextRules;
