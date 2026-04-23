@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Response Mocker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="title">Response Mocker</div>
+      <label class="switch">
+        <input id="enabledToggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <div id="statusLine" class="status"></div>
+
+    <main>
+      <section class="section">
+        <div class="sectionHeader">
+          <div class="sectionTitle">Rules</div>
+          <button id="addRuleBtn" class="btn">Add</button>
+        </div>
+        <div id="rulesList" class="rules"></div>
+      </section>
+    </main>
+
+    <template id="ruleTemplate">
+      <div class="rule">
+        <div class="ruleTop">
+          <label class="checkboxRow">
+            <input class="ruleEnabled" type="checkbox" />
+            <span>Enabled</span>
+          </label>
+          <button class="btn danger ruleDelete">Delete</button>
+        </div>
+
+        <label class="field">
+          <div class="label">URL regex</div>
+          <input class="input ruleRegex" placeholder="e.g. https://api\\.example\\.com/v1/items" />
+        </label>
+
+        <div class="grid2">
+          <label class="field">
+            <div class="label">Status</div>
+            <input class="input ruleStatus" type="number" min="100" max="599" />
+          </label>
+          <label class="field">
+            <div class="label">Content-Type (optional)</div>
+            <input class="input ruleContentType" placeholder="application/json" />
+          </label>
+        </div>
+
+        <label class="field">
+          <div class="label">Headers (JSON object)</div>
+          <textarea class="textarea ruleHeaders" rows="4" spellcheck="false"></textarea>
+        </label>
+
+        <label class="field">
+          <div class="label">Body</div>
+          <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </template>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
+

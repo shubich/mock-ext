@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Response Mocker (CDP)",
+  "version": "0.1.0",
+  "description": "Mock HTTP responses (status, headers, body) by intercepting requests via Chrome DevTools Protocol.",
+  "action": {
+    "default_title": "Response Mocker",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "debugger", "tabs"],
+  "host_permissions": ["<all_urls>"]
+}
+
