@@ -8,12 +8,12 @@ const STORAGE_KEYS = {
 /**
  * Rule shape (stored in chrome.storage.local):
  * {
- *   id: string,
- *   enabled: boolean,
- *   urlRegex: string, // JS RegExp source
- *   status: number,
- *   headers: Record<string, string>,
- *   body: string
+ *   id, enabled, urlRegex,
+ *   mockKind: "response" | "request"  // default "response" if missing
+ *   // Response mock (Fetch.fulfillRequest):
+ *   status, headers, body
+ *   // Outgoing request override (Fetch.continueRequest; real response from server):
+ *   requestMethod?, requestUrl?, requestHeaders?, requestBody? (if key missing, do not change body)
  * }
  */
 
@@ -92,6 +92,68 @@ function normalizeHeaders(headersObj) {
     out.push({ name, value: String(value) });
   }
   return out;
+}
+
+function isResponseModeRule(rule) {
+  return !rule || rule.mockKind !== "request";
+}
+
+function requestHeadersToObjectFromFetchRequest(request) {
+  const o = {};
+  const h = request?.headers;
+  if (Array.isArray(h)) {
+    for (const item of h) {
+      if (item && item.name) o[String(item.name)] = item.value != null ? String(item.value) : "";
+    }
+  }
+  return o;
+}
+
+function mergeHeaderObjects(base, overrides) {
+  const merged = { ...base };
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) return merged;
+  for (const [k, v] of Object.entries(overrides)) {
+    const lk = String(k).toLowerCase();
+    for (const ex of Object.keys(merged)) {
+      if (String(ex).toLowerCase() === lk) delete merged[ex];
+    }
+    merged[k] = String(v);
+  }
+  return merged;
+}
+
+async function continueRequestWithRequestRule(source, params, rule) {
+  const req = params?.request;
+  if (!req) {
+    try {
+      await chrome.debugger.sendCommand(source, "Fetch.continueRequest", { requestId: params.requestId });
+    } catch {}
+    return;
+  }
+  const o = { requestId: params.requestId };
+  o.url = (rule.requestUrl && String(rule.requestUrl).trim()) || req.url;
+  o.method = (rule.requestMethod && String(rule.requestMethod).trim()) || req.method;
+
+  const baseH = requestHeadersToObjectFromFetchRequest(req);
+  const over = rule.requestHeaders && typeof rule.requestHeaders === "object" ? rule.requestHeaders : {};
+  o.headers = normalizeHeaders(mergeHeaderObjects(baseH, over));
+
+  if (Object.prototype.hasOwnProperty.call(rule, "requestBody")) {
+    if (rule.requestBody == null) {
+      if (req.postData) o.postData = req.postData;
+    } else {
+      o.postData = base64EncodeUtf8(String(rule.requestBody));
+    }
+  } else if (req.postData) {
+    o.postData = req.postData;
+  }
+  try {
+    await chrome.debugger.sendCommand(source, "Fetch.continueRequest", o);
+  } catch (e) {
+    try {
+      await chrome.debugger.sendCommand(source, "Fetch.continueRequest", { requestId: params.requestId });
+    } catch {}
+  }
 }
 
 function hasHeader(headersObj, headerName) {
@@ -273,7 +335,13 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
     return;
   }
 
-  // Preflight: answer OPTIONS with permissive CORS so real request can proceed.
+  // Outgoing request override: the browser sends a modified request; the real server (or cache) returns the response.
+  if (!isResponseModeRule(rule)) {
+    await continueRequestWithRequestRule(source, params, rule);
+    return;
+  }
+
+  // Preflight: answer OPTIONS with permissive CORS so the real (mocked) response can be read in the page.
   if (reqMethod === "OPTIONS") {
     const preflightHeaders = normalizeHeaders(
       withDefaultCorsHeaders(rule.headers, requestHeaderMap)
@@ -364,16 +432,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (type === "ADD_RULE") {
       const partial = msg.rule && typeof msg.rule === "object" ? msg.rule : {};
       const id = partial.id || `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const mockKind = partial.mockKind === "request" ? "request" : "response";
       const newRule = {
         id,
         enabled: partial.enabled !== false,
         urlRegex: String(partial.urlRegex || ""),
-        status: Number(partial.status) || 200,
-        headers: partial.headers && typeof partial.headers === "object" ? partial.headers : {},
-        body: partial.body != null ? String(partial.body) : '{\n  "mocked": true\n}\n'
+        mockKind
       };
-      if (!newRule.headers || Object.keys(newRule.headers).length === 0) {
-        newRule.headers = { "Content-Type": "application/json" };
+      if (mockKind === "request") {
+        newRule.status = 0;
+        newRule.headers = {};
+        newRule.body = "";
+        if (partial.requestMethod != null) newRule.requestMethod = String(partial.requestMethod);
+        if (partial.requestUrl != null) newRule.requestUrl = String(partial.requestUrl);
+        if (
+          partial.requestHeaders &&
+          typeof partial.requestHeaders === "object" &&
+          !Array.isArray(partial.requestHeaders)
+        ) {
+          newRule.requestHeaders = {};
+          for (const [k, v] of Object.entries(partial.requestHeaders)) {
+            newRule.requestHeaders[String(k)] = String(v);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(partial, "requestBody") && partial.requestBody != null) {
+          newRule.requestBody = String(partial.requestBody);
+        }
+      } else {
+        newRule.status = Number(partial.status) || 200;
+        newRule.headers = partial.headers && typeof partial.headers === "object" ? partial.headers : {};
+        newRule.body = partial.body != null ? String(partial.body) : '{\n  "mocked": true\n}\n';
+        if (!newRule.headers || Object.keys(newRule.headers).length === 0) {
+          newRule.headers = { "Content-Type": "application/json" };
+        }
       }
       const rules = await getRules();
       rules.unshift(newRule);
@@ -390,14 +481,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (type === "PATCH_RULE") {
-      const { id, enabled, status, body, urlRegex, headers } = msg;
+      const {
+        id,
+        enabled,
+        status,
+        body,
+        urlRegex,
+        headers,
+        mockKind,
+        requestMethod,
+        requestUrl,
+        requestBody,
+        requestHeaders
+      } = msg;
       const rules = await getRules();
       const rule = rules.find((r) => r && r.id === id);
       if (!rule) {
         return sendResponse({ ok: false, error: "Rule not found" });
       }
       if (typeof enabled === "boolean") rule.enabled = enabled;
-      if (status != null) rule.status = Number(status) || 200;
+      if ("mockKind" in msg && (msg.mockKind === "request" || msg.mockKind === "response")) {
+        rule.mockKind = msg.mockKind;
+        if (msg.mockKind === "request") {
+          rule.status = 0;
+          rule.body = "";
+          rule.headers = {};
+        } else {
+          delete rule.requestMethod;
+          delete rule.requestUrl;
+          delete rule.requestHeaders;
+          delete rule.requestBody;
+        }
+      }
+      if (status != null) rule.status = Number(status) || 0;
       if (body != null) rule.body = String(body);
       if (urlRegex != null) {
         const s = String(urlRegex).trim();
@@ -415,6 +531,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           next[String(k)] = String(v);
         }
         rule.headers = next;
+      }
+      if (Object.prototype.hasOwnProperty.call(msg, "requestMethod")) {
+        if (requestMethod == null) {
+          delete rule.requestMethod;
+        } else {
+          const s = String(requestMethod).trim();
+          if (s) rule.requestMethod = s;
+          else delete rule.requestMethod;
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(msg, "requestUrl")) {
+        if (requestUrl == null) {
+          delete rule.requestUrl;
+        } else {
+          const s = String(requestUrl).trim();
+          if (s) rule.requestUrl = s;
+          else delete rule.requestUrl;
+        }
+      }
+      if (requestHeaders != null) {
+        if (typeof requestHeaders !== "object" || Array.isArray(requestHeaders) || requestHeaders === null) {
+          return sendResponse({ ok: false, error: "requestHeaders must be a JSON object" });
+        }
+        const next = {};
+        for (const [k, v] of Object.entries(requestHeaders)) {
+          next[String(k)] = String(v);
+        }
+        rule.requestHeaders = next;
+      }
+      if (Object.prototype.hasOwnProperty.call(msg, "requestBody")) {
+        if (msg.requestBody == null) {
+          delete rule.requestBody;
+        } else {
+          rule.requestBody = String(msg.requestBody);
+        }
       }
       await setInStorage({ [STORAGE_KEYS.rules]: rules });
       return sendResponse({ ok: true, rules: await getRules() });

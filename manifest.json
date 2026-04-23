@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Response Mocker (CDP)",
-  "version": "0.1.0",
-  "description": "Mock HTTP responses (status, headers, body) by intercepting requests via Chrome DevTools Protocol.",
+  "name": "MockWeave",
+  "version": "0.2.0",
+  "description": "Intercept HTTP with DevTools Protocol: fake responses or override outgoing requests (method, URL, headers, body).",
   "devtools_page": "devtools.html",
   "action": {
-    "default_title": "Response Mocker",
+    "default_title": "MockWeave",
     "default_popup": "popup.html"
   },
   "background": {
@@ -15,4 +15,3 @@
   "permissions": ["storage", "debugger", "tabs"],
   "host_permissions": ["<all_urls>"]
 }
-

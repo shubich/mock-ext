@@ -109,8 +109,12 @@ function getFilteredRules() {
     if ((r.urlRegex || "").toLowerCase().includes(f)) return true;
     if (String(r.status || "").includes(f)) return true;
     if ((r.body || "").toLowerCase().includes(f)) return true;
+    if ((r.requestUrl || "").toLowerCase().includes(f)) return true;
+    if ((r.requestMethod || "").toLowerCase().includes(f)) return true;
+    if ((r.requestBody || "").toLowerCase().includes(f)) return true;
     try {
       if (JSON.stringify(r.headers || {}).toLowerCase().includes(f)) return true;
+      if (JSON.stringify(r.requestHeaders || {}).toLowerCase().includes(f)) return true;
     } catch (e) {
       /* ignore */
     }
@@ -306,24 +310,57 @@ function parseHeadersJsonFromPanel(text) {
   return out;
 }
 
+function syncEdModalMode() {
+  const kind = document.getElementById("edKind")?.value || "response";
+  const res = document.getElementById("edResBlock");
+  const req = document.getElementById("edReqBlock");
+  if (res) res.hidden = kind === "request";
+  if (req) req.hidden = kind !== "request";
+}
+
 function openRuleEditor(rule) {
   if (!rule) return;
   editingRuleId = rule.id;
   const modal = document.getElementById("ruleModal");
   const edUrl = document.getElementById("edUrl");
+  const edKind = document.getElementById("edKind");
   const edStatus = document.getElementById("edStatus");
   const edHeaders = document.getElementById("edHeaders");
   const edBody = document.getElementById("edBody");
-  if (!modal || !edUrl || !edStatus || !edHeaders || !edBody) return;
+  const edReqMethod = document.getElementById("edReqMethod");
+  const edReqUrl = document.getElementById("edReqUrl");
+  const edReqHeaders = document.getElementById("edReqHeaders");
+  const edReqBody = document.getElementById("edReqBody");
+  if (!modal || !edUrl || !edKind || !edStatus || !edHeaders || !edBody) return;
   const full = findRuleById(rule.id) || rule;
+  const kind = full.mockKind === "request" ? "request" : "response";
+  edKind.value = kind;
   edUrl.value = full.urlRegex || "";
-  edStatus.value = String(full.status != null ? full.status : 200);
+  edStatus.value = String(full.status != null && full.status > 0 ? full.status : 200);
   const h = full.headers && typeof full.headers === "object" ? full.headers : {};
   const prettyH = Object.keys(h).length ? JSON.stringify(h, null, 2) : "";
   edHeaders.value = prettyH;
   edBody.value = full.body != null ? String(full.body) : "";
+  if (edReqMethod) edReqMethod.value = full.requestMethod || "";
+  if (edReqUrl) edReqUrl.value = full.requestUrl || "";
+  if (edReqHeaders) {
+    const rh = full.requestHeaders && typeof full.requestHeaders === "object" ? full.requestHeaders : {};
+    const pr = JSON.stringify(rh, null, 2);
+    edReqHeaders.value = pr === "{}" ? "" : pr;
+  }
+  if (edReqBody) {
+    edReqBody.value = Object.prototype.hasOwnProperty.call(full, "requestBody")
+      ? full.requestBody != null
+        ? String(full.requestBody)
+        : ""
+      : "";
+  }
+  syncEdModalMode();
   modal.hidden = false;
-  setTimeout(() => edBody.focus(), 50);
+  setTimeout(() => {
+    if (kind === "request" && edReqBody) edReqBody.focus();
+    else if (edBody) edBody.focus();
+  }, 50);
 }
 
 function closeRuleEditor() {
@@ -347,16 +384,23 @@ function renderRulesTable() {
   body.innerHTML = "";
   for (const r of list) {
     if (!r) continue;
+    const isReq = r.mockKind === "request";
+    const kindTag = isReq
+      ? `<span class="tag kindReq" title="Outgoing request is overridden; response is real">REQ</span> `
+      : `<span class="tag kindRes" title="Response is faked in the app">RES</span> `;
     const tr = document.createElement("tr");
     const short = (r.urlRegex || "").length > 100 ? (r.urlRegex || "").slice(0, 100) + "…" : r.urlRegex || "";
+    const statusCell = isReq
+      ? `<td class="muted" title="Not used in request-override mode">—</td>`
+      : `<td><input class="statusField statusIn" data-id="${escapeAttr(
+          r.id
+        )}" type="number" min="100" max="599" value="${Number(
+        r.status
+      ) || 200}" title="Click away or Enter to apply" aria-label="HTTP status" /></td>`;
     tr.innerHTML = `
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
-      <td><input class="statusField statusIn" data-id="${escapeAttr(
-        r.id
-      )}" type="number" min="100" max="599" value="${Number(
-      r.status
-    ) || 200}" title="Click away or Enter to apply" aria-label="HTTP status" /></td>
-      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${escapeHtml(short || "(empty)")}</td>
+      ${statusCell}
+      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${escapeHtml(short || "(empty)")}</td>
       <td>
         <div class="btnRow">
           <button type="button" class="btn sm editRule" data-id="${escapeAttr(r.id)}">Edit</button>
@@ -387,6 +431,7 @@ function renderRulesTable() {
         e.target.value = String(findRuleById(id)?.status || 200);
         return;
       }
+      if (findRuleById(id)?.mockKind === "request") return;
       const res = await sendToBg({ type: "PATCH_RULE", id, status: n });
       if (res?.ok) {
         rulesCache = res.rules || rulesCache;
@@ -459,7 +504,9 @@ function renderCapturedTable() {
           ? " ⚠"
           : "";
     const actionCell = rule
-      ? `<div class="btnRow"><span class="tag">Mocked</span><button type="button" class="btn sm editFromCap" data-rule-id="${escapeAttr(
+      ? `<div class="btnRow"><span class="tag ${
+          rule.mockKind === "request" ? "tagReq" : "tag"
+        }">${rule.mockKind === "request" ? "Request" : "Response"}</span><button type="button" class="btn sm editFromCap" data-rule-id="${escapeAttr(
           rule.id
         )}">Edit</button></div>`
       : `<button type="button" class="btn sm mockBtn" data-cid="${escapeAttr(
@@ -573,6 +620,8 @@ function wireModal() {
   const modal = document.getElementById("ruleModal");
   const cancel = document.getElementById("edCancel");
   const save = document.getElementById("edSave");
+  const edKind = document.getElementById("edKind");
+  edKind?.addEventListener("change", () => syncEdModalMode());
   cancel?.addEventListener("click", () => closeRuleEditor());
   save?.addEventListener("click", async () => {
     if (!editingRuleId) return;
@@ -580,24 +629,54 @@ function wireModal() {
     const edStatus = document.getElementById("edStatus");
     const edHeaders = document.getElementById("edHeaders");
     const edBody = document.getElementById("edBody");
-    if (!edUrl || !edStatus || !edHeaders || !edBody) return;
-    let headersObj;
-    if (edHeaders.value.trim()) {
-      try {
-        headersObj = parseHeadersJsonFromPanel(edHeaders.value);
-      } catch (err) {
-        setStatus(err?.message || String(err), "warn");
-        return;
+    const edReqMethod = document.getElementById("edReqMethod");
+    const edReqUrl = document.getElementById("edReqUrl");
+    const edReqHeaders = document.getElementById("edReqHeaders");
+    const edReqBody = document.getElementById("edReqBody");
+    if (!edUrl) return;
+    const kind = edKind?.value === "request" ? "request" : "response";
+    const payload = { type: "PATCH_RULE", id: editingRuleId, urlRegex: edUrl.value.trim(), mockKind: kind };
+    if (kind === "response") {
+      if (!edStatus || !edHeaders || !edBody) return;
+      let headersObj;
+      if (edHeaders.value.trim()) {
+        try {
+          headersObj = parseHeadersJsonFromPanel(edHeaders.value);
+        } catch (err) {
+          setStatus(err?.message || String(err), "warn");
+          return;
+        }
+      }
+      Object.assign(payload, {
+        status: Number(edStatus.value) || 200,
+        body: edBody.value,
+        ...(headersObj !== undefined ? { headers: headersObj } : {})
+      });
+    } else {
+      let rHeaders;
+      if (edReqHeaders?.value?.trim()) {
+        try {
+          rHeaders = parseHeadersJsonFromPanel(edReqHeaders.value);
+        } catch (err) {
+          setStatus(err?.message || String(err), "warn");
+          return;
+        }
+      } else {
+        rHeaders = {};
+      }
+      const prev = findRuleById(editingRuleId);
+      const hadBody = prev && Object.prototype.hasOwnProperty.call(prev, "requestBody");
+      const rawBody = edReqBody?.value ?? "";
+      Object.assign(payload, {
+        requestMethod: edReqMethod?.value?.trim() || null,
+        requestUrl: edReqUrl?.value?.trim() || null,
+        requestHeaders: rHeaders
+      });
+      if (rawBody.trim() !== "" || hadBody) {
+        payload.requestBody = rawBody.trim() === "" ? null : rawBody;
       }
     }
-    const res = await sendToBg({
-      type: "PATCH_RULE",
-      id: editingRuleId,
-      urlRegex: edUrl.value.trim(),
-      status: Number(edStatus.value) || 200,
-      body: edBody.value,
-      ...(headersObj !== undefined ? { headers: headersObj } : {})
-    });
+    const res = await sendToBg(payload);
     if (res?.ok) {
       rulesCache = res.rules || rulesCache;
       setStatus("Rule saved", "ok");

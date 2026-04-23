@@ -8,7 +8,7 @@
     <div class="toolbar">
       <label class="row">
         <input id="enabledToggle" type="checkbox" />
-        <span>Mock responses for the inspected page tab</span>
+        <span>Intercept HTTP for the inspected page (response mocks &amp; request overrides)</span>
       </label>
       <div id="tabIdLine" class="muted small"></div>
     </div>
@@ -82,25 +82,52 @@
 
     <div id="ruleModal" class="modal" hidden>
       <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="editRuleTitle">
-        <h3 id="editRuleTitle" class="modalTitle">Edit mock rule</h3>
+        <h3 id="editRuleTitle" class="modalTitle">Edit rule</h3>
         <label class="field">
-          <div class="label">URL / pattern</div>
+          <div class="label">Match (URL or pattern)</div>
           <input type="text" id="edUrl" class="search full" spellcheck="false" />
         </label>
-        <div class="fieldRow">
-          <label class="field grow">
-            <div class="label">HTTP status</div>
-            <input type="number" id="edStatus" class="search" min="100" max="599" />
+        <label class="field">
+          <div class="label">Mode</div>
+          <select id="edKind" class="search full" aria-label="Rule mode">
+            <option value="response">Fake response to the app</option>
+            <option value="request">Override outgoing request (server returns real response)</option>
+          </select>
+        </label>
+        <div id="edResBlock" class="editBlock">
+          <div class="fieldRow">
+            <label class="field grow">
+              <div class="label">Response HTTP status</div>
+              <input type="number" id="edStatus" class="search" min="100" max="599" />
+            </label>
+          </div>
+          <label class="field">
+            <div class="label">Response headers (JSON object)</div>
+            <textarea id="edHeaders" class="ta" rows="4" spellcheck="false"></textarea>
+          </label>
+          <label class="field">
+            <div class="label">Response body</div>
+            <textarea id="edBody" class="ta" rows="8" spellcheck="false"></textarea>
           </label>
         </div>
-        <label class="field">
-          <div class="label">Response headers (JSON object)</div>
-          <textarea id="edHeaders" class="ta" rows="4" spellcheck="false"></textarea>
-        </label>
-        <label class="field">
-          <div class="label">Body</div>
-          <textarea id="edBody" class="ta" rows="10" spellcheck="false"></textarea>
-        </label>
+        <div id="edReqBlock" class="editBlock" hidden>
+          <label class="field">
+            <div class="label">Override method (empty = keep)</div>
+            <input type="text" id="edReqMethod" class="search full" spellcheck="false" />
+          </label>
+          <label class="field">
+            <div class="label">Override URL (empty = keep)</div>
+            <input type="text" id="edReqUrl" class="search full" spellcheck="false" />
+          </label>
+          <label class="field">
+            <div class="label">Request header overrides (JSON, merged on top of the live request)</div>
+            <textarea id="edReqHeaders" class="ta" rows="4" spellcheck="false"></textarea>
+          </label>
+          <label class="field">
+            <div class="label">Request body (replace; clear and save to use the browser’s original body)</div>
+            <textarea id="edReqBody" class="ta" rows="6" spellcheck="false"></textarea>
+          </label>
+        </div>
         <div class="modalActions">
           <button type="button" class="btn" id="edCancel">Cancel</button>
           <button type="button" class="btn primary" id="edSave">Save</button>

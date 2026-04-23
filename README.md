@@ -1,51 +1,77 @@
-# Response Mocker (Chrome Extension)
+# MockWeave (Chrome extension)
 
-Chrome extension that can **mock HTTP responses** by matching request URL with a RegExp and overriding:
+**MockWeave** intercepts page traffic with the Chrome **DevTools Protocol** (`Fetch` domain) and `chrome.debugger`. It works **per tab** while the feature is on.
 
-- status code
-- response headers
-- response body
+## Two ways to work with HTTP
 
-It uses Chrome DevTools Protocol (`Fetch.fulfillRequest`) via the `chrome.debugger` permission, so mocking is enabled **per-tab**.
+1. **Fake response (default)**  
+   The browser does **not** call the real server for matching URLs. You supply **status, response headers, body** (CDP: `Fetch.fulfillRequest`). Good for simulating API responses end-to-end in the app.
 
-## Install (dev)
+2. **Override outgoing request**  
+   The request is **changed** (method, URL, extra/replaced headers, body) and then **sent to the real server**; the app receives the **real** response (CDP: `Fetch.continueRequest`). Good for pointing an existing UI at another path, testing header/body rewrites, or A/B the same call with different parameters.
+
+**Match** is the same for both: URL or pattern — paste a full `https://…` URL, or a regex, or prefix `re:` / `lit:` (see below).
+
+**Rule order** matters: the **first** enabled rule that matches a URL wins.
+
+## Install (unpacked)
 
 1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select this folder: `mock-ext/`
+2. Turn on **Developer mode**
+3. **Load unpacked** → select this `mock-ext` folder
 
-## Use
+## Enable
 
-1. Open the tab you want to mock
-2. Click the extension icon, **or** open **DevTools** and select the **Response Mocker** tab (same level as **Network** / **Console**).
-3. Toggle **Mock responses for the inspected page tab** (Chrome will ask you to allow debugging)
-4. Add a rule:
-   - **URL**: paste a **full** `https://...` URL to match it literally, or a regex; prefix with `re:` for a regex, or `lit:` to force a literal.
-   - **Status**: e.g. `200`, `404`, `500`
-   - **Headers**: JSON object, e.g.
+1. Open the target tab (and keep **DevTools** open if you use the side panel)
+2. From the **toolbar icon** or the **MockWeave** DevTools tab, turn on **Mock … for this tab** (Chrome will ask to allow the debugger to attach to the page)
 
-```json
-{
-  "Content-Type": "application/json",
-  "X-Mocked-By": "ResponseMocker"
-}
-```
+## Rules in the popup
 
-   - **Body**: any text (JSON, HTML, etc.)
+- **Mode**
+  - **Fake response to the app** — status, **response** headers, **response** body
+  - **Override outgoing request** — optional **method**, **URL**, **request header** map (JSON, merged on top of the real request), **request body** (if you leave the body empty and the rule never stored a `requestBody` override, the original body from the page is kept; see saved rules in storage)
+- **URL** — full URL, or `re:...` / `lit:...` / string patterns as before
 
-Rules are saved automatically into `chrome.storage.local`.
+## DevTools “MockWeave” tab
 
-### DevTools panel (pick requests to mock)
+- **Captured requests** — traffic while that DevTools window is open. **Filter** by URL. **Mock** creates a **response** rule and fills it from the **captured** response (body loads asynchronously; ⏳ on the status column while waiting).
+- **Active rules** — **RES** = response mock, **REQ** = request override; **Edit** opens a dialog with the same two modes. Inline “status” applies only to **RES** rules.
 
-With DevTools open on the page, open the **Response Mocker** tab. **Captured requests** are collected while that DevTools window is open. Use the **Filter** field to search URLs. Click **Mock** to add a full-URL rule: it copies the **real response status, headers (framing fields stripped), and body** (loaded asynchronously from DevTools; a short ⏳ next to the status means the body is still loading). The editor opens so you can adjust the data. For **Edit** on an already mocked request, behavior is the same. Leaving response headers empty in the editor keeps the existing headers; paste a JSON object to replace them.
+## URL matching (unchanged)
 
-**Reload** the extension on `chrome://extensions` after code changes, then close and reopen DevTools if the new tab does not appear.
+- Starts with `http(s)://` → treated as a **literal** full URL (so `?` and `.` are not regex pitfalls).
+- Prefix **`re:`** — regex after the prefix
+- Prefix **`lit:`** — force literal
+- Otherwise — treated as regex
 
-## Notes / limitations
+## CORS and `OPTIONS`
 
-- Works only while enabled for the current tab (because CDP attaches to a tab).
-- For `Content-Type` there is a convenience input that mirrors into headers.
-- If a rule has invalid regex, it will be ignored by the background script.
-- Cross-origin requests may require CORS headers. The extension adds permissive CORS headers by default for mocked responses, and answers `OPTIONS` preflight with `204`.
+- For **response** mocks, the extension adds CORS headers and, when the page sends a credentialed `fetch`, echoes **`Origin`** and sets **`Access-Control-Allow-Credentials`** as needed. Preflight `OPTIONS` is answered with **204** so the real (mocked) response can be read in DevTools and in the app.
+- For **request** overrides, the **real** server answers — CORS is whatever the server returns.
 
+## After changing code
+
+`chrome://extensions` → **Reload** the extension. Re-enable mocking on the tab; reopen DevTools if the new panel tab is missing.
+
+## Name ideas (if you rebrand the repo)
+
+- **MockWeave** (current) — “weave” request + response control  
+- **OverWire** — override what goes on the wire  
+- **CDP Tuner** — explicit about DevTools Protocol  
+- **NetFork** — branch traffic without leaving DevTools  
+- **ReqRes Rigger** — hook both directions  
+- **TraceShift** — shift behavior while tracing in DevTools  
+- **HTTP Braid** — combine multiple handlers / rules (conceptually like weaving)
+
+## Limitations
+
+- **Per tab**; attaching the debugger is tied to the active tab.  
+- **First matching** rule only.  
+- **Request** and **response** for the **same** URL: use **two** rules and **order** them (e.g. one pattern more specific) — only the first match runs. You cannot in one step both fulfill a response *and* modify the request.  
+- Invalid regex in a pattern → that rule is skipped.  
+- Very large response bodies in the panel are **truncated** when copying from capture (~1MB).
+
+## Technical
+
+- `Fetch.enable` on `*`, `Fetch.requestPaused` → `fulfillRequest` (response) or `continueRequest` (request)  
+- Rules in `chrome.storage.local`

@@ -263,15 +263,32 @@ tr:last-child td {
   margin-left: 2px;
   user-select: none;
 }
-.tag {
+.tag,
+.tagReq,
+.kindRes,
+.kindReq {
   display: inline-block;
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.tag,
+.kindRes {
   background: var(--tag);
   border: 1px solid rgba(23, 178, 106, 0.35);
   color: #d0ffe8;
-  white-space: nowrap;
+}
+.tagReq,
+.kindReq {
+  background: rgba(120, 90, 220, 0.2);
+  border: 1px solid rgba(150, 130, 255, 0.4);
+  color: #e6e0ff;
+}
+.editBlock[hidden] {
+  display: none !important;
 }
 kbd {
   font: inherit;

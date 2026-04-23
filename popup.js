@@ -47,6 +47,16 @@ function parseUrlMatcherInput(input) {
   return { mode: "regex", source: raw };
 }
 
+function syncRuleKindInNode(node) {
+  const kindEl = node.querySelector(".ruleKind");
+  const resBlock = node.querySelector(".ruleResponseFields");
+  const reqBlock = node.querySelector(".ruleRequestFields");
+  if (!kindEl || !resBlock || !reqBlock) return;
+  const isReq = kindEl.value === "request";
+  resBlock.toggleAttribute("hidden", isReq);
+  reqBlock.toggleAttribute("hidden", !isReq);
+}
+
 function renderRules(rules, onChange) {
   const list = byId("rulesList");
   list.innerHTML = "";
@@ -57,15 +67,23 @@ function renderRules(rules, onChange) {
 
     const enabledEl = node.querySelector(".ruleEnabled");
     const regexEl = node.querySelector(".ruleRegex");
+    const kindEl = node.querySelector(".ruleKind");
     const statusEl = node.querySelector(".ruleStatus");
     const contentTypeEl = node.querySelector(".ruleContentType");
     const headersEl = node.querySelector(".ruleHeaders");
     const bodyEl = node.querySelector(".ruleBody");
+    const reqMethodEl = node.querySelector(".ruleRequestMethod");
+    const reqUrlEl = node.querySelector(".ruleRequestUrl");
+    const reqHeadersEl = node.querySelector(".ruleRequestHeaders");
+    const reqBodyEl = node.querySelector(".ruleRequestBody");
     const delBtn = node.querySelector(".ruleDelete");
+
+    const kind = rule.mockKind === "request" ? "request" : "response";
+    if (kindEl) kindEl.value = kind;
 
     enabledEl.checked = !!rule.enabled;
     regexEl.value = rule.urlRegex || "";
-    statusEl.value = String(rule.status ?? 200);
+    statusEl.value = String(rule.status != null && rule.status > 0 ? rule.status : 200);
     bodyEl.value = rule.body ?? "";
 
     const headers = rule.headers && typeof rule.headers === "object" ? rule.headers : {};
@@ -73,9 +91,26 @@ function renderRules(rules, onChange) {
     headersEl.value = prettyHeaders === "{}" ? "" : prettyHeaders;
     contentTypeEl.value = headers["Content-Type"] || headers["content-type"] || "";
 
+    reqMethodEl.value = rule.requestMethod || "";
+    reqUrlEl.value = rule.requestUrl || "";
+    const rrh = rule.requestHeaders && typeof rule.requestHeaders === "object" ? rule.requestHeaders : {};
+    const pRh = JSON.stringify(rrh, null, 2);
+    reqHeadersEl.value = pRh === "{}" ? "" : pRh;
+    if (Object.prototype.hasOwnProperty.call(rule, "requestBody")) {
+      reqBodyEl.value = rule.requestBody != null ? String(rule.requestBody) : "";
+    } else {
+      reqBodyEl.value = "";
+    }
+
+    syncRuleKindInNode(node);
+
     const emit = () => onChange();
     enabledEl.addEventListener("change", emit);
     regexEl.addEventListener("input", emit);
+    kindEl.addEventListener("change", () => {
+      syncRuleKindInNode(node);
+      emit();
+    });
     statusEl.addEventListener("input", emit);
     headersEl.addEventListener("input", emit);
     bodyEl.addEventListener("input", emit);
@@ -83,6 +118,10 @@ function renderRules(rules, onChange) {
       // Keep Content-Type mirrored into headers JSON for convenience.
       emit();
     });
+    reqMethodEl.addEventListener("input", emit);
+    reqUrlEl.addEventListener("input", emit);
+    reqHeadersEl.addEventListener("input", emit);
+    reqBodyEl.addEventListener("input", emit);
 
     delBtn.addEventListener("click", () => {
       const idx = rules.findIndex((r) => r.id === rule.id);
@@ -106,28 +145,59 @@ function collectRulesFromUI(rules) {
     const node = nodes[i];
     const enabled = node.querySelector(".ruleEnabled").checked;
     const urlRegex = node.querySelector(".ruleRegex").value.trim();
-    const status = Number(node.querySelector(".ruleStatus").value) || 200;
-    const headersText = node.querySelector(".ruleHeaders").value;
-    const contentType = node.querySelector(".ruleContentType").value.trim();
-    const body = node.querySelector(".ruleBody").value;
-
-    const headers = parseHeadersJson(headersText);
-    if (contentType) headers["Content-Type"] = contentType;
+    const mockKind = node.querySelector(".ruleKind")?.value === "request" ? "request" : "response";
 
     // Preserve stable id ordering based on original rules array index.
     const id = rules[i]?.id || uid();
 
-    next.push({
-      id,
-      enabled,
-      urlRegex,
-      status,
-      headers,
-      body
-    });
+    if (mockKind === "request") {
+      const reqHeadersText = node.querySelector(".ruleRequestHeaders").value;
+      const reqBodyText = node.querySelector(".ruleRequestBody").value;
+      let requestHeaders;
+      if ((reqHeadersText || "").trim()) {
+        requestHeaders = parseHeadersJson(reqHeadersText);
+      } else {
+        requestHeaders = {};
+      }
+      const row = {
+        id,
+        enabled,
+        urlRegex,
+        mockKind: "request",
+        status: 0,
+        headers: {},
+        body: ""
+      };
+      const rm = node.querySelector(".ruleRequestMethod").value.trim();
+      const ru = node.querySelector(".ruleRequestUrl").value.trim();
+      if (rm) row.requestMethod = rm;
+      if (ru) row.requestUrl = ru;
+      if (Object.keys(requestHeaders).length) row.requestHeaders = requestHeaders;
+      if ((reqBodyText || "").trim() !== "" || findPrevHadRequestBody(rules, i)) {
+        if ((reqBodyText || "").trim() === "") {
+          row.requestBody = null;
+        } else {
+          row.requestBody = reqBodyText;
+        }
+      }
+      next.push(row);
+    } else {
+      const status = Number(node.querySelector(".ruleStatus").value) || 200;
+      const headersText = node.querySelector(".ruleHeaders").value;
+      const contentType = node.querySelector(".ruleContentType").value.trim();
+      const body = node.querySelector(".ruleBody").value;
+      const headers = parseHeadersJson(headersText);
+      if (contentType) headers["Content-Type"] = contentType;
+      next.push({ id, enabled, urlRegex, mockKind: "response", status, headers, body });
+    }
   }
 
   return next;
+}
+
+function findPrevHadRequestBody(rules, index) {
+  const r = rules[index];
+  return r && Object.prototype.hasOwnProperty.call(r, "requestBody");
 }
 
 let activeTabId = null;
@@ -207,6 +277,7 @@ async function init() {
       id: uid(),
       enabled: true,
       urlRegex: "",
+      mockKind: "response",
       status: 200,
       headers: { "Content-Type": "application/json" },
       body: "{\n  \"mocked\": true\n}\n"

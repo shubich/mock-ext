@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Response Mocker</title>
+    <title>MockWeave</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header class="header">
-      <div class="title">Response Mocker</div>
+      <div class="title" id="extTitle">MockWeave</div>
       <label class="switch">
         <input id="enabledToggle" type="checkbox" />
         <span class="slider"></span>
@@ -45,26 +45,55 @@
           />
         </label>
 
-        <div class="grid2">
+        <label class="field">
+          <div class="label">Mode</div>
+          <select class="input ruleKind">
+            <option value="response">Fake response to the app (no real server for this call)</option>
+            <option value="request">Override outgoing request (URL / method / headers / body; real response from server)</option>
+          </select>
+        </label>
+
+        <div class="ruleResponseFields">
+          <div class="grid2">
+            <label class="field">
+              <div class="label">Status</div>
+              <input class="input ruleStatus" type="number" min="100" max="599" />
+            </label>
+            <label class="field">
+              <div class="label">Content-Type (optional)</div>
+              <input class="input ruleContentType" placeholder="application/json" />
+            </label>
+          </div>
+
           <label class="field">
-            <div class="label">Status</div>
-            <input class="input ruleStatus" type="number" min="100" max="599" />
+            <div class="label">Response headers (JSON object)</div>
+            <textarea class="textarea ruleHeaders" rows="4" spellcheck="false"></textarea>
           </label>
+
           <label class="field">
-            <div class="label">Content-Type (optional)</div>
-            <input class="input ruleContentType" placeholder="application/json" />
+            <div class="label">Response body</div>
+            <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
           </label>
         </div>
 
-        <label class="field">
-          <div class="label">Headers (JSON object)</div>
-          <textarea class="textarea ruleHeaders" rows="4" spellcheck="false"></textarea>
-        </label>
-
-        <label class="field">
-          <div class="label">Body</div>
-          <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
-        </label>
+        <div class="ruleRequestFields" hidden>
+          <label class="field">
+            <div class="label">Override method (empty = as sent by the page)</div>
+            <input class="input ruleRequestMethod" placeholder="e.g. POST, PUT" spellcheck="false" />
+          </label>
+          <label class="field">
+            <div class="label">Override URL (empty = original request URL)</div>
+            <input class="input ruleRequestUrl" type="text" placeholder="https://…" spellcheck="false" />
+          </label>
+          <label class="field">
+            <div class="label">Request header overrides (JSON object, merged on top of the actual request)</div>
+            <textarea class="textarea ruleRequestHeaders" rows="3" spellcheck="false"></textarea>
+          </label>
+          <label class="field">
+            <div class="label">Request body (replace; leave empty to keep the browser’s original body)</div>
+            <textarea class="textarea ruleRequestBody" rows="4" spellcheck="false"></textarea>
+          </label>
+        </div>
       </div>
     </template>
 
