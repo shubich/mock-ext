@@ -94,6 +94,103 @@ function normalizeHeaders(headersObj) {
   return out;
 }
 
+function hasHeader(headersObj, headerName) {
+  const target = String(headerName).toLowerCase();
+  return Object.keys(headersObj || {}).some((k) => String(k).toLowerCase() === target);
+}
+
+/**
+ * Request headers in Fetch.requestPaused are usually an array of { name, value }.
+ * Build a lowercase-key map for CORS/special handling.
+ */
+function getRequestHeaderMap(request) {
+  const raw = request?.headers;
+  const map = {};
+  if (Array.isArray(raw)) {
+    for (const h of raw) {
+      if (h && h.name) map[String(h.name).toLowerCase()] = h.value;
+    }
+  } else if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw)) {
+      map[String(k).toLowerCase()] = v;
+    }
+  }
+  return map;
+}
+
+/**
+ * CORS: credentialed fetches (cookies / credentials: "include") reject
+ * `Access-Control-Allow-Origin: *` — the response must echo the request `Origin`
+ * and include `Access-Control-Allow-Credentials: true`.
+ */
+function withDefaultCorsHeaders(headersObj, requestHeaderMap) {
+  const headers = { ...(headersObj || {}) };
+  const origin = (requestHeaderMap?.["origin"] || "").toString().trim();
+  const preflightWantedMethod = (requestHeaderMap?.["access-control-request-method"] || "").trim();
+  const preflightWantedHeaders = (requestHeaderMap?.["access-control-request-headers"] || "").trim();
+  const credentialedRequest =
+    !!requestHeaderMap?.["cookie"]?.toString().trim().length ||
+    !!requestHeaderMap?.["authorization"]?.toString().trim().length;
+
+  // If user already set CORS headers, only fill gaps (reflect Origin, credentials).
+  if (!hasHeader(headers, "access-control-allow-origin")) {
+    if (origin) {
+      // Echo request Origin — required when `Access-Control-Allow-Origin: *` is invalid
+      // (e.g. fetch with credentials, or cookies on cross-origin XHR).
+      headers["Access-Control-Allow-Origin"] = origin;
+      if (!hasHeader(headers, "access-control-allow-credentials")) {
+        headers["Access-Control-Allow-Credentials"] = "true";
+      }
+    } else {
+      headers["Access-Control-Allow-Origin"] = "*";
+    }
+  } else if (!hasHeader(headers, "access-control-allow-credentials") && credentialedRequest) {
+    const uao = getHeaderValueCi(headers, "Access-Control-Allow-Origin");
+    if (uao && uao !== "*") {
+      headers["Access-Control-Allow-Credentials"] = "true";
+    }
+  }
+
+  if (!hasHeader(headers, "access-control-allow-headers")) {
+    if (preflightWantedHeaders) {
+      // Echo requested client headers; wildcards on preflight are inconsistent across clients.
+      headers["Access-Control-Allow-Headers"] = preflightWantedHeaders;
+    } else {
+      headers["Access-Control-Allow-Headers"] = "*";
+    }
+  }
+  if (!hasHeader(headers, "access-control-allow-methods")) {
+    if (preflightWantedMethod) {
+      const base = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD";
+      if (!base.split(", ").map((m) => m.toUpperCase()).includes(preflightWantedMethod.toUpperCase())) {
+        headers["Access-Control-Allow-Methods"] = `${base}, ${preflightWantedMethod.toUpperCase()}`;
+      } else {
+        headers["Access-Control-Allow-Methods"] = base;
+      }
+    } else {
+      headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD";
+    }
+  }
+  if (!hasHeader(headers, "access-control-max-age")) {
+    headers["Access-Control-Max-Age"] = "86400";
+  }
+  if (!hasHeader(headers, "cache-control")) {
+    headers["Cache-Control"] = "no-store";
+  }
+  if (origin && !hasHeader(headers, "vary")) {
+    headers["Vary"] = "Origin";
+  }
+  return headers;
+}
+
+function getHeaderValueCi(headersObj, headerName) {
+  const target = String(headerName).toLowerCase();
+  for (const [k, v] of Object.entries(headersObj || {})) {
+    if (String(k).toLowerCase() === target) return String(v);
+  }
+  return undefined;
+}
+
 function base64EncodeUtf8(str) {
   // btoa expects latin1; convert via UTF-8.
   const bytes = new TextEncoder().encode(str);
@@ -162,6 +259,8 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
   }
 
   const url = params?.request?.url || "";
+  const reqMethod = (params?.request?.method || "GET").toUpperCase();
+  const requestHeaderMap = getRequestHeaderMap(params.request);
   const rules = await getRules();
   const rule = matchRule(rules, url);
 
@@ -174,8 +273,26 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
     return;
   }
 
+  // Preflight: answer OPTIONS with permissive CORS so real request can proceed.
+  if (reqMethod === "OPTIONS") {
+    const preflightHeaders = normalizeHeaders(
+      withDefaultCorsHeaders(rule.headers, requestHeaderMap)
+    );
+    try {
+      await chrome.debugger.sendCommand(source, "Fetch.fulfillRequest", {
+        requestId: params.requestId,
+        responseCode: 204,
+        responseHeaders: preflightHeaders,
+        body: base64EncodeUtf8("")
+      });
+      return;
+    } catch (e) {
+      // fall through to continueRequest
+    }
+  }
+
   const body = rule.body ?? "";
-  const responseHeaders = normalizeHeaders(rule.headers);
+  const responseHeaders = normalizeHeaders(withDefaultCorsHeaders(rule.headers, requestHeaderMap));
 
   try {
     await chrome.debugger.sendCommand(source, "Fetch.fulfillRequest", {

@@ -41,4 +41,5 @@ Rules are saved automatically into `chrome.storage.local`.
 - Works only while enabled for the current tab (because CDP attaches to a tab).
 - For `Content-Type` there is a convenience input that mirrors into headers.
 - If a rule has invalid regex, it will be ignored by the background script.
+- Cross-origin requests may require CORS headers. The extension adds permissive CORS headers by default for mocked responses, and answers `OPTIONS` preflight with `204`.
 
