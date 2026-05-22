@@ -87,6 +87,13 @@
           <div class="label">Match (URL or pattern)</div>
           <input type="text" id="edUrl" class="search full" spellcheck="false" />
         </label>
+        <div class="field">
+          <label class="row tight">
+            <input type="checkbox" id="edUrlIncluded" />
+            <span title="Match when the request URL contains this text as a substring (e.g. hello/world matches …/hello/world/123)."
+              >Included</span>
+          </label>
+        </div>
         <label class="field">
           <div class="label">Mode</div>
           <select id="edKind" class="search full" aria-label="Rule mode">

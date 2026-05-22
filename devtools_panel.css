@@ -39,6 +39,12 @@ h2 {
   gap: 8px;
   user-select: none;
 }
+.row.tight {
+  gap: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
 .muted {
   color: var(--muted);
 }
@@ -286,6 +292,18 @@ tr:last-child td {
   background: rgba(120, 90, 220, 0.2);
   border: 1px solid rgba(150, 130, 255, 0.4);
   color: #e6e0ff;
+}
+.kindInc {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 4px;
+  background: rgba(247, 144, 9, 0.14);
+  border: 1px solid rgba(247, 144, 9, 0.35);
+  color: #ffe8c8;
 }
 .editBlock[hidden] {
   display: none !important;

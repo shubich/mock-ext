@@ -331,11 +331,13 @@ function openRuleEditor(rule) {
   const edReqUrl = document.getElementById("edReqUrl");
   const edReqHeaders = document.getElementById("edReqHeaders");
   const edReqBody = document.getElementById("edReqBody");
+  const edUrlIncluded = document.getElementById("edUrlIncluded");
   if (!modal || !edUrl || !edKind || !edStatus || !edHeaders || !edBody) return;
   const full = findRuleById(rule.id) || rule;
   const kind = full.mockKind === "request" ? "request" : "response";
   edKind.value = kind;
   edUrl.value = full.urlRegex || "";
+  if (edUrlIncluded) edUrlIncluded.checked = !!full.urlIncluded;
   edStatus.value = String(full.status != null && full.status > 0 ? full.status : 200);
   const h = full.headers && typeof full.headers === "object" ? full.headers : {};
   const prettyH = Object.keys(h).length ? JSON.stringify(h, null, 2) : "";
@@ -388,6 +390,9 @@ function renderRulesTable() {
     const kindTag = isReq
       ? `<span class="tag kindReq" title="Outgoing request is overridden; response is real">REQ</span> `
       : `<span class="tag kindRes" title="Response is faked in the app">RES</span> `;
+    const incTag = r.urlIncluded
+      ? `<span class="kindInc" title="URL must contain this pattern (substring)">INC</span> `
+      : "";
     const tr = document.createElement("tr");
     const short = (r.urlRegex || "").length > 100 ? (r.urlRegex || "").slice(0, 100) + "…" : r.urlRegex || "";
     const statusCell = isReq
@@ -400,7 +405,7 @@ function renderRulesTable() {
     tr.innerHTML = `
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
-      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${escapeHtml(short || "(empty)")}</td>
+      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || "(empty)")}</td>
       <td>
         <div class="btnRow">
           <button type="button" class="btn sm editRule" data-id="${escapeAttr(r.id)}">Edit</button>
@@ -635,7 +640,14 @@ function wireModal() {
     const edReqBody = document.getElementById("edReqBody");
     if (!edUrl) return;
     const kind = edKind?.value === "request" ? "request" : "response";
-    const payload = { type: "PATCH_RULE", id: editingRuleId, urlRegex: edUrl.value.trim(), mockKind: kind };
+    const edUrlIncluded = document.getElementById("edUrlIncluded");
+    const payload = {
+      type: "PATCH_RULE",
+      id: editingRuleId,
+      urlRegex: edUrl.value.trim(),
+      mockKind: kind,
+      urlIncluded: !!edUrlIncluded?.checked
+    };
     if (kind === "response") {
       if (!edStatus || !edHeaders || !edBody) return;
       let headersObj;

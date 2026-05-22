@@ -63,6 +63,7 @@ function updateRuleSummary(node) {
   const summaryEl = node.querySelector(".ruleSummary");
   const kindEl = node.querySelector(".ruleKind");
   const regexEl = node.querySelector(".ruleRegex");
+  const urlIncEl = node.querySelector(".ruleUrlIncluded");
   if (!summaryEl || !kindEl || !regexEl) return;
   const isReq = kindEl.value === "request";
   const modeLabel = isReq ? "Request override" : "Fake response";
@@ -73,7 +74,8 @@ function updateRuleSummary(node) {
   else if (url.length > RULE_SUMMARY_MAX_LEN) {
     url = `${url.slice(0, RULE_SUMMARY_MAX_LEN - 1)}…`;
   }
-  summaryEl.textContent = `${modeLabel} · ${url}`;
+  const inc = urlIncEl?.checked ? "Include · " : "";
+  summaryEl.textContent = `${inc}${modeLabel} · ${url}`;
 }
 
 function setRuleCollapsed(node, collapsed) {
@@ -108,12 +110,14 @@ function renderRules(rules, onChange) {
     const reqBodyEl = node.querySelector(".ruleRequestBody");
     const delBtn = node.querySelector(".ruleDelete");
     const toggleBtn = node.querySelector(".ruleToggle");
+    const urlIncludedEl = node.querySelector(".ruleUrlIncluded");
 
     const kind = rule.mockKind === "request" ? "request" : "response";
     if (kindEl) kindEl.value = kind;
 
     enabledEl.checked = !!rule.enabled;
     regexEl.value = rule.urlRegex || "";
+    if (urlIncludedEl) urlIncludedEl.checked = !!rule.urlIncluded;
     statusEl.value = String(rule.status != null && rule.status > 0 ? rule.status : 200);
     bodyEl.value = rule.body ?? "";
 
@@ -153,6 +157,12 @@ function renderRules(rules, onChange) {
       updateRuleSummary(node);
       emit();
     });
+    if (urlIncludedEl) {
+      urlIncludedEl.addEventListener("change", () => {
+        updateRuleSummary(node);
+        emit();
+      });
+    }
     statusEl.addEventListener("input", emit);
     headersEl.addEventListener("input", emit);
     bodyEl.addEventListener("input", emit);
@@ -187,6 +197,7 @@ function collectRulesFromUI(rules) {
     const node = nodes[i];
     const enabled = node.querySelector(".ruleEnabled").checked;
     const urlRegex = node.querySelector(".ruleRegex").value.trim();
+    const urlIncluded = !!node.querySelector(".ruleUrlIncluded")?.checked;
     const mockKind = node.querySelector(".ruleKind")?.value === "request" ? "request" : "response";
 
     // Preserve stable id ordering based on original rules array index.
@@ -222,6 +233,7 @@ function collectRulesFromUI(rules) {
           row.requestBody = reqBodyText;
         }
       }
+      if (urlIncluded) row.urlIncluded = true;
       next.push(row);
     } else {
       const status = Number(node.querySelector(".ruleStatus").value) || 200;
@@ -230,7 +242,9 @@ function collectRulesFromUI(rules) {
       const body = node.querySelector(".ruleBody").value;
       const headers = parseHeadersJson(headersText);
       if (contentType) headers["Content-Type"] = contentType;
-      next.push({ id, enabled, urlRegex, mockKind: "response", status, headers, body });
+      const resRow = { id, enabled, urlRegex, mockKind: "response", status, headers, body };
+      if (urlIncluded) resRow.urlIncluded = true;
+      next.push(resRow);
     }
   }
 
@@ -258,6 +272,7 @@ async function scheduleSave() {
       for (const r of nextRules) {
         if (!r.enabled) continue;
         if (!r.urlRegex) throw new Error("Enabled rule missing URL regex");
+        if (r.urlIncluded) continue;
         const matcher = parseUrlMatcherInput(r.urlRegex);
         if (matcher.mode === "none" || !matcher.source) {
           throw new Error("Enabled rule missing URL matcher");

@@ -10,7 +10,7 @@
 2. **Override outgoing request**  
    The request is **changed** (method, URL, extra/replaced headers, body) and then **sent to the real server**; the app receives the **real** response (CDP: `Fetch.continueRequest`). Good for pointing an existing UI at another path, testing header/body rewrites, or A/B the same call with different parameters.
 
-**Match** is the same for both: URL or pattern — paste a full `https://…` URL, or a regex, or prefix `re:` / `lit:` (see below).
+**Match** is the same for both: URL or pattern — paste a full `https://…` URL, or a regex, or prefix `re:` / `lit:` (see below). Enable **Included** to match when the request URL **contains** your text as a plain substring (no regex).
 
 **Rule order** matters: the **first** enabled rule that matches a URL wins.
 
@@ -30,15 +30,16 @@
 - **Mode**
   - **Fake response to the app** — status, **response** headers, **response** body
   - **Override outgoing request** — optional **method**, **URL**, **request header** map (JSON, merged on top of the real request), **request body** (if you leave the body empty and the rule never stored a `requestBody` override, the original body from the page is kept; see saved rules in storage)
-- **URL** — full URL, or `re:...` / `lit:...` / string patterns as before
+- **URL** — full URL, `re:` / `lit:` / regex patterns as before, or with **Included** checked: plain substring (e.g. `hello/world` matches `https://api.example/hello/world/123`)
 
 ## DevTools “MockWeave” tab
 
 - **Captured requests** — traffic while that DevTools window is open. **Filter** by URL. **Mock** creates a **response** rule and fills it from the **captured** response (body loads asynchronously; ⏳ on the status column while waiting).
-- **Active rules** — **RES** = response mock, **REQ** = request override; **Edit** opens a dialog with the same two modes. Inline “status” applies only to **RES** rules.
+- **Active rules** — **RES** = response mock, **REQ** = request override, **INC** = substring (“included”) match; **Edit** opens a dialog with the same two modes. Inline “status” applies only to **RES** rules.
 
-## URL matching (unchanged)
+## URL matching
 
+- **Included** (checkbox) — the URL field is matched as **plain text** anywhere in the request URL (substring). `re:`, `lit:`, and regex rules are **not** used while Included is on.
 - Starts with `http(s)://` → treated as a **literal** full URL (so `?` and `.` are not regex pitfalls).
 - Prefix **`re:`** — regex after the prefix
 - Prefix **`lit:`** — force literal

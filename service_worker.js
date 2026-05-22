@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
  * Rule shape (stored in chrome.storage.local):
  * {
  *   id, enabled, urlRegex,
+ *   urlIncluded?: boolean  // when true, match if request URL includes urlRegex as plain text
  *   mockKind: "response" | "request"  // default "response" if missing
  *   // Response mock (Fetch.fulfillRequest):
  *   status, headers, body
@@ -291,6 +292,12 @@ function matchRule(rules, url) {
   for (const rule of rules) {
     if (!rule || !rule.enabled) continue;
     try {
+      if (rule.urlIncluded) {
+        const needle = String(rule.urlRegex || "").trim();
+        if (!needle) continue;
+        if (url.includes(needle)) return rule;
+        continue;
+      }
       const matcher = parseUrlMatcher(rule.urlRegex);
       if (matcher.mode === "none") continue;
       const source =
@@ -439,6 +446,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         urlRegex: String(partial.urlRegex || ""),
         mockKind
       };
+      if (partial.urlIncluded) newRule.urlIncluded = true;
       if (mockKind === "request") {
         newRule.status = 0;
         newRule.headers = {};
@@ -487,6 +495,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         status,
         body,
         urlRegex,
+        urlIncluded,
         headers,
         mockKind,
         requestMethod,
@@ -521,6 +530,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           return sendResponse({ ok: false, error: "URL / pattern cannot be empty" });
         }
         rule.urlRegex = s;
+      }
+      if (Object.prototype.hasOwnProperty.call(msg, "urlIncluded")) {
+        if (urlIncluded) rule.urlIncluded = true;
+        else delete rule.urlIncluded;
       }
       if (headers != null) {
         if (typeof headers !== "object" || Array.isArray(headers) || headers === null) {
