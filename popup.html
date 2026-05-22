@@ -28,32 +28,37 @@
     </main>
 
     <template id="ruleTemplate">
-      <div class="rule">
-        <div class="ruleTop">
+      <div class="rule" data-collapsed="true">
+        <div class="ruleHeader">
+          <button type="button" class="btn ruleToggle" aria-expanded="false" title="Show rule details">
+            ▶
+          </button>
+          <div class="ruleSummary"></div>
           <label class="checkboxRow">
             <input class="ruleEnabled" type="checkbox" />
             <span>Enabled</span>
           </label>
-          <button class="btn danger ruleDelete">Delete</button>
+          <button type="button" class="btn danger ruleDelete">Delete</button>
         </div>
 
-        <label class="field">
+        <div class="ruleDetails" hidden>
+          <label class="field">
           <div class="label">URL (paste full URL or use regex with re:)</div>
           <input
             class="input ruleRegex"
             placeholder="paste full URL, or: re:https://api\\.example\\.com/v1/items\\?regionId=\\d+"
           />
-        </label>
+          </label>
 
-        <label class="field">
+          <label class="field">
           <div class="label">Mode</div>
           <select class="input ruleKind">
             <option value="response">Fake response to the app (no real server for this call)</option>
             <option value="request">Override outgoing request (URL / method / headers / body; real response from server)</option>
           </select>
-        </label>
+          </label>
 
-        <div class="ruleResponseFields">
+          <div class="ruleResponseFields">
           <div class="grid2">
             <label class="field">
               <div class="label">Status</div>
@@ -74,9 +79,9 @@
             <div class="label">Response body</div>
             <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
           </label>
-        </div>
+          </div>
 
-        <div class="ruleRequestFields" hidden>
+          <div class="ruleRequestFields" hidden>
           <label class="field">
             <div class="label">Override method (empty = as sent by the page)</div>
             <input class="input ruleRequestMethod" placeholder="e.g. POST, PUT" spellcheck="false" />
@@ -93,6 +98,7 @@
             <div class="label">Request body (replace; leave empty to keep the browser’s original body)</div>
             <textarea class="textarea ruleRequestBody" rows="4" spellcheck="false"></textarea>
           </label>
+          </div>
         </div>
       </div>
     </template>

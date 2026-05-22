@@ -100,12 +100,46 @@ main {
   padding: 10px;
 }
 
-.ruleTop {
+.ruleHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+}
+
+.rule[data-collapsed="true"] .ruleHeader {
+  margin-bottom: 0;
+}
+
+.rule[data-collapsed="false"] .ruleHeader {
   margin-bottom: 10px;
+}
+
+.ruleToggle {
+  flex-shrink: 0;
+  width: 32px;
+  padding-left: 0;
+  padding-right: 0;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ruleSummary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ruleHeader .checkboxRow {
+  flex-shrink: 0;
+}
+
+.ruleHeader .ruleDelete {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .checkboxRow {

@@ -57,6 +57,36 @@ function syncRuleKindInNode(node) {
   reqBlock.toggleAttribute("hidden", !isReq);
 }
 
+const RULE_SUMMARY_MAX_LEN = 52;
+
+function updateRuleSummary(node) {
+  const summaryEl = node.querySelector(".ruleSummary");
+  const kindEl = node.querySelector(".ruleKind");
+  const regexEl = node.querySelector(".ruleRegex");
+  if (!summaryEl || !kindEl || !regexEl) return;
+  const isReq = kindEl.value === "request";
+  const modeLabel = isReq ? "Request override" : "Fake response";
+  let url = String(regexEl.value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!url) url = "(no URL)";
+  else if (url.length > RULE_SUMMARY_MAX_LEN) {
+    url = `${url.slice(0, RULE_SUMMARY_MAX_LEN - 1)}…`;
+  }
+  summaryEl.textContent = `${modeLabel} · ${url}`;
+}
+
+function setRuleCollapsed(node, collapsed) {
+  const details = node.querySelector(".ruleDetails");
+  const toggle = node.querySelector(".ruleToggle");
+  if (!details || !toggle) return;
+  node.dataset.collapsed = collapsed ? "true" : "false";
+  details.hidden = collapsed;
+  toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  toggle.textContent = collapsed ? "▶" : "▼";
+  toggle.title = collapsed ? "Show rule details" : "Hide rule details";
+}
+
 function renderRules(rules, onChange) {
   const list = byId("rulesList");
   list.innerHTML = "";
@@ -77,6 +107,7 @@ function renderRules(rules, onChange) {
     const reqHeadersEl = node.querySelector(".ruleRequestHeaders");
     const reqBodyEl = node.querySelector(".ruleRequestBody");
     const delBtn = node.querySelector(".ruleDelete");
+    const toggleBtn = node.querySelector(".ruleToggle");
 
     const kind = rule.mockKind === "request" ? "request" : "response";
     if (kindEl) kindEl.value = kind;
@@ -103,12 +134,23 @@ function renderRules(rules, onChange) {
     }
 
     syncRuleKindInNode(node);
+    updateRuleSummary(node);
+    setRuleCollapsed(node, true);
 
     const emit = () => onChange();
+    toggleBtn.addEventListener("click", () => {
+      const collapsed = node.dataset.collapsed === "true";
+      setRuleCollapsed(node, !collapsed);
+    });
+
     enabledEl.addEventListener("change", emit);
-    regexEl.addEventListener("input", emit);
+    regexEl.addEventListener("input", () => {
+      updateRuleSummary(node);
+      emit();
+    });
     kindEl.addEventListener("change", () => {
       syncRuleKindInNode(node);
+      updateRuleSummary(node);
       emit();
     });
     statusEl.addEventListener("input", emit);
@@ -283,6 +325,8 @@ async function init() {
       body: "{\n  \"mocked\": true\n}\n"
     });
     renderRules(rulesModel, scheduleSave);
+    const newRuleEl = byId("rulesList").querySelector(".rule");
+    if (newRuleEl) setRuleCollapsed(newRuleEl, false);
     scheduleSave();
   });
 
