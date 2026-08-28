@@ -584,6 +584,55 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return sendResponse({ ok: true, rules: await getRules() });
     }
 
+    if (type === "SEND_HTTP") {
+      const method = String(msg.method || "GET").toUpperCase();
+      const url = String(msg.url || "").trim();
+      if (!url) return sendResponse({ ok: false, error: "URL is required" });
+      const headersIn =
+        msg.headers && typeof msg.headers === "object" && !Array.isArray(msg.headers) ? msg.headers : {};
+      const body = msg.body != null ? String(msg.body) : "";
+      const t0 = Date.now();
+      try {
+        const init = { method, redirect: "follow" };
+        const hdrs = new Headers();
+        for (const [k, v] of Object.entries(headersIn)) {
+          const name = String(k).trim();
+          if (!name) continue;
+          const lower = name.toLowerCase();
+          if (lower === "content-length" || lower === "host") continue;
+          hdrs.set(name, String(v));
+        }
+        init.headers = hdrs;
+        if (body && method !== "GET" && method !== "HEAD") init.body = body;
+        const res = await fetch(url, init);
+        const text = await res.text();
+        const resHeaders = {};
+        res.headers.forEach((v, k) => {
+          resHeaders[k] = v;
+        });
+        let outBody = text;
+        if (outBody.length > 1_000_000) {
+          outBody = outBody.slice(0, 1_000_000) + "\n\n... [response truncated] ...";
+        }
+        return sendResponse({
+          ok: true,
+          status: res.status,
+          statusText: res.statusText,
+          headers: resHeaders,
+          body: outBody,
+          ms: Date.now() - t0,
+          via: "extension"
+        });
+      } catch (e) {
+        return sendResponse({
+          ok: false,
+          error: e?.message || String(e),
+          ms: Date.now() - t0,
+          via: "extension"
+        });
+      }
+    }
+
     return sendResponse({ ok: false, error: "Unknown message type" });
   })();
 

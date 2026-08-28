@@ -7,25 +7,25 @@
   <body>
     <div class="app">
       <header class="toolbar">
-        <label class="row">
-          <input id="enabledToggle" type="checkbox" />
-          <span>Intercept HTTP for the inspected page</span>
-        </label>
+        <div class="toolbarRow">
+          <label class="row">
+            <input id="enabledToggle" type="checkbox" />
+            <span>Intercept HTTP for the inspected page</span>
+          </label>
+        </div>
+        <nav class="navTabs" role="tablist" aria-label="MockWeave views">
+          <button type="button" class="navTab active" data-view="captured" role="tab" aria-selected="true">
+            Captured
+          </button>
+          <button type="button" class="navTab" data-view="rules" role="tab" aria-selected="false">Rules</button>
+          <button type="button" class="navTab" data-view="send" role="tab" aria-selected="false">Send</button>
+        </nav>
         <div id="tabIdLine" class="muted small"></div>
         <div id="statusLine" class="status"></div>
       </header>
 
       <div class="workspace" id="workspace">
         <aside class="sidebar" id="sidebar">
-          <nav class="navTabs" role="tablist" aria-label="MockWeave views">
-            <button type="button" class="navTab active" data-view="captured" role="tab" aria-selected="true">
-              Captured
-            </button>
-            <button type="button" class="navTab" data-view="rules" role="tab" aria-selected="false">
-              Rules
-            </button>
-          </nav>
-
           <div class="sidebarTools" id="capturedTools">
             <input
               type="search"
@@ -85,12 +85,13 @@
           <div id="detailEmpty" class="detailEmpty">
             <h2>MockWeave</h2>
             <p class="hint">
-              Select a captured request or rule on the left, or click <strong>Mock</strong> on a request to
-              create a rule. Edit response body and headers here with full panel height.
+              Select a captured request or rule on the left, or use <strong>Send</strong> to replay HTTP
+              manually. Edit response body and headers here with full panel height.
             </p>
             <ul class="hintList">
               <li><strong>Captured</strong> — traffic while DevTools is open</li>
               <li><strong>Rules</strong> — active mocks (same storage as the toolbar popup)</li>
+              <li><strong>Send</strong> — Postman-style replay (direct or via page for mocks)</li>
             </ul>
           </div>
 
@@ -98,6 +99,7 @@
             <div class="detailHeader">
               <h2 id="editRuleTitle">Edit rule</h2>
               <div class="detailActions">
+                <button type="button" class="btn" id="edReplaySend" hidden>Replay in Send</button>
                 <button type="button" class="btn" id="edCancel">Close</button>
                 <button type="button" class="btn primary" id="edSave">Save</button>
                 <button type="button" class="btn danger" id="edDelete" hidden>Delete</button>
@@ -164,6 +166,70 @@
             </div>
           </div>
         </main>
+
+        <section class="sendPane" id="sendPane" hidden>
+          <div class="sendLayout">
+            <div class="sendCol sendRequest">
+              <div class="sendBlockHeader">
+                <h2>Request</h2>
+                <button type="button" class="btn primary" id="sendBtn">Send</button>
+              </div>
+              <div class="fieldRow sendMethodRow">
+                <label class="field methodField">
+                  <div class="label">Method</div>
+                  <select id="sendMethod" class="search" aria-label="HTTP method">
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>PATCH</option>
+                    <option>DELETE</option>
+                    <option>HEAD</option>
+                    <option>OPTIONS</option>
+                  </select>
+                </label>
+                <label class="field grow">
+                  <div class="label">URL</div>
+                  <input type="text" id="sendUrl" class="search full" placeholder="https://api.example/v1/…" spellcheck="false" />
+                </label>
+              </div>
+              <fieldset class="sendModeField">
+                <legend class="label">Send via</legend>
+                <label class="row tight">
+                  <input type="radio" name="sendMode" value="direct" checked />
+                  <span><strong>Direct</strong> — extension calls the real API (mocks do not apply)</span>
+                </label>
+                <label class="row tight">
+                  <input type="radio" name="sendMode" value="page" />
+                  <span><strong>Via page</strong> — fetch in the inspected tab (mocks &amp; cookies apply)</span>
+                </label>
+              </fieldset>
+              <label class="field">
+                <div class="label">Request headers (JSON object)</div>
+                <textarea id="sendReqHeaders" class="ta taHeaders" spellcheck="false" placeholder='{\n  "Accept": "application/json"\n}'></textarea>
+              </label>
+              <label class="field fieldGrow">
+                <div class="label">Request body</div>
+                <textarea id="sendReqBody" class="ta taBody" spellcheck="false"></textarea>
+              </label>
+            </div>
+
+            <div class="sendCol sendResponse">
+              <div class="sendBlockHeader">
+                <h2>Response</h2>
+                <button type="button" class="btn" id="sendMockBtn" hidden>Create mock from response</button>
+              </div>
+              <div id="sendMeta" class="sendMeta muted">Send a request to see status, timing, and body.</div>
+              <label class="field">
+                <div class="label">Response headers (JSON)</div>
+                <textarea id="sendResHeaders" class="ta taHeaders" readonly spellcheck="false"></textarea>
+              </label>
+              <label class="field fieldGrow">
+                <div class="label">Response body</div>
+                <textarea id="sendResBody" class="ta taBody" readonly spellcheck="false"></textarea>
+              </label>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 

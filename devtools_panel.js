@@ -68,6 +68,8 @@ let editingRuleId = null;
 let activeView = "captured";
 let selectedCapturedCid = null;
 let selectedRuleId = null;
+let lastSendResult = null;
+let replayCaptureItem = null;
 
 function sendToBg(msg) {
   return new Promise((resolve) => {
@@ -135,6 +137,8 @@ function getFilteredRules() {
  *  status: number,
  *  resHeaders: Record<string, string>,
  *  resBody: string | null,
+ *  reqHeaders?: Record<string, string>,
+ *  reqBody?: string | null,
  *  bodyLoadState: "loading" | "ok" | "empty" | "none" | "error",
  *  t: number
  * }} CapturedItem
@@ -153,6 +157,9 @@ function pushCapturedItem(partial) {
     status: Number(partial.status) || 0,
     resHeaders: partial.resHeaders && typeof partial.resHeaders === "object" ? partial.resHeaders : {},
     resBody: partial.resBody != null ? String(partial.resBody) : null,
+    reqHeaders:
+      partial.reqHeaders && typeof partial.reqHeaders === "object" ? partial.reqHeaders : {},
+    reqBody: partial.reqBody != null ? String(partial.reqBody) : null,
     bodyLoadState: partial.bodyLoadState || (partial.resBody != null ? "ok" : "empty"),
     t: Date.now()
   };
@@ -190,7 +197,12 @@ function harEntryToCapturePayload(entry) {
       bodyLoadState = "error";
     }
   }
-  return { method, url, status, resHeaders, resBody, bodyLoadState };
+  const reqHeaders = harHeadersArrayToObject(entry.request.headers);
+  let reqBody = null;
+  if (entry.request.postData && entry.request.postData.text) {
+    reqBody = String(entry.request.postData.text);
+  }
+  return { method, url, status, resHeaders, resBody, bodyLoadState, reqHeaders, reqBody };
 }
 
 /**
@@ -202,18 +214,23 @@ function devtoolsRequestToCaptureBase(req) {
   const method = (inner.method || "GET").toString().toUpperCase();
   const url = String((inner && inner.url) || req.url || "");
   if (!url) return null;
+  const reqHeaders = harHeadersArrayToObject(inner.headers);
+  let reqBody = null;
+  if (inner.postData && inner.postData.text) reqBody = String(inner.postData.text);
   const response = req.response;
   if (!response) {
     return {
       method,
       url,
       status: 0,
-      resHeaders: {}
+      resHeaders: {},
+      reqHeaders,
+      reqBody
     };
   }
   const status = response.status != null ? response.status : 0;
   const resHeaders = stripResponseHeadersForMock(harHeadersArrayToObject(response.headers));
-  return { method, url, status, resHeaders };
+  return { method, url, status, resHeaders, reqHeaders, reqBody };
 }
 
 /**
@@ -302,7 +319,8 @@ async function loadState() {
 }
 
 function setActiveView(view) {
-  activeView = view === "rules" ? "rules" : "captured";
+  const views = ["captured", "rules", "send"];
+  activeView = views.includes(view) ? view : "captured";
   for (const btn of document.querySelectorAll(".navTab")) {
     const on = btn.getAttribute("data-view") === activeView;
     btn.classList.toggle("active", on);
@@ -312,10 +330,19 @@ function setActiveView(view) {
   const rulesPane = document.getElementById("rulesPane");
   const capTools = document.getElementById("capturedTools");
   const rulesTools = document.getElementById("rulesTools");
+  const sidebar = document.getElementById("sidebar");
+  const splitter = document.getElementById("splitter");
+  const detailPane = document.getElementById("detailPane");
+  const sendPane = document.getElementById("sendPane");
+  const isSend = activeView === "send";
   if (capPane) capPane.hidden = activeView !== "captured";
   if (rulesPane) rulesPane.hidden = activeView !== "rules";
   if (capTools) capTools.hidden = activeView !== "captured";
   if (rulesTools) rulesTools.hidden = activeView !== "rules";
+  if (sidebar) sidebar.hidden = isSend;
+  if (splitter) splitter.hidden = isSend;
+  if (detailPane) detailPane.hidden = isSend;
+  if (sendPane) sendPane.hidden = !isSend;
 }
 
 function showDetailEmpty() {
@@ -368,6 +395,10 @@ function showCapturePreview(item) {
     openRuleEditor(rule, { keepSelection: true });
     return;
   }
+
+  replayCaptureItem = item;
+  const replayBtn = document.getElementById("edReplaySend");
+  if (replayBtn) replayBtn.hidden = false;
 
   edKind.value = "response";
   edUrl.value = item.url;
@@ -520,6 +551,9 @@ function openRuleEditor(rule, opts = {}) {
     saveBtn.textContent = "Save";
     saveBtn.disabled = false;
   }
+  const replayBtn = document.getElementById("edReplaySend");
+  if (replayBtn) replayBtn.hidden = true;
+  replayCaptureItem = null;
 
   const full = findRuleById(rule.id) || rule;
   const kind = full.mockKind === "request" ? "request" : "response";
@@ -697,6 +731,10 @@ function renderCapturedTable() {
       showCapturePreview(c);
       highlightSelectedRows();
     });
+    tr.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      fillSendFromCapture(c);
+    });
     body.appendChild(tr);
   }
 }
@@ -711,6 +749,207 @@ async function renderAll() {
   } else if (editingRuleId) {
     highlightSelectedRows();
   }
+}
+
+function getSendMode() {
+  const el = document.querySelector('input[name="sendMode"]:checked');
+  return el?.value === "page" ? "page" : "direct";
+}
+
+function clearSendResponse() {
+  lastSendResult = null;
+  const meta = document.getElementById("sendMeta");
+  const rh = document.getElementById("sendResHeaders");
+  const rb = document.getElementById("sendResBody");
+  const mockBtn = document.getElementById("sendMockBtn");
+  if (meta) {
+    meta.textContent = "Send a request to see status, timing, and body.";
+    meta.className = "sendMeta muted";
+  }
+  if (rh) rh.value = "";
+  if (rb) rb.value = "";
+  if (mockBtn) mockBtn.hidden = true;
+}
+
+function fillSendFromCapture(item) {
+  if (!item) return;
+  const methodEl = document.getElementById("sendMethod");
+  const urlEl = document.getElementById("sendUrl");
+  const reqHeadersEl = document.getElementById("sendReqHeaders");
+  const reqBodyEl = document.getElementById("sendReqBody");
+  if (methodEl) methodEl.value = item.method || "GET";
+  if (urlEl) urlEl.value = item.url || "";
+  const rh =
+    item.reqHeaders && Object.keys(item.reqHeaders).length
+      ? item.reqHeaders
+      : { Accept: "application/json" };
+  if (reqHeadersEl) reqHeadersEl.value = JSON.stringify(rh, null, 2);
+  if (reqBodyEl) reqBodyEl.value = item.reqBody != null ? String(item.reqBody) : "";
+  clearSendResponse();
+  setActiveView("send");
+  setStatus("Loaded captured request into Send", "ok");
+}
+
+function readSendRequestFromForm() {
+  const method = (document.getElementById("sendMethod")?.value || "GET").toUpperCase();
+  const url = (document.getElementById("sendUrl")?.value || "").trim();
+  const headersText = document.getElementById("sendReqHeaders")?.value || "";
+  const body = document.getElementById("sendReqBody")?.value ?? "";
+  let headers = {};
+  if (headersText.trim()) {
+    headers = parseHeadersJsonFromPanel(headersText);
+  }
+  return { method, url, headers, body };
+}
+
+function renderSendResult(result) {
+  lastSendResult = result;
+  const meta = document.getElementById("sendMeta");
+  const rh = document.getElementById("sendResHeaders");
+  const rb = document.getElementById("sendResBody");
+  const mockBtn = document.getElementById("sendMockBtn");
+  if (!meta || !rh || !rb) return;
+
+  if (!result?.ok) {
+    meta.textContent = `Error (${result?.via || "?"}${result?.ms != null ? `, ${result.ms} ms` : ""}): ${result?.error || "Request failed"}`;
+    meta.className = "sendMeta warn";
+    rh.value = "";
+    rb.value = "";
+    if (mockBtn) mockBtn.hidden = true;
+    return;
+  }
+
+  const viaLabel = result.via === "page" ? "via page" : "direct";
+  meta.textContent = `${result.status} ${result.statusText || ""} · ${result.ms} ms · ${viaLabel}`.trim();
+  meta.className = result.status >= 200 && result.status < 400 ? "sendMeta ok" : "sendMeta warn";
+  rh.value = JSON.stringify(result.headers || {}, null, 2);
+  rb.value = result.body != null ? String(result.body) : "";
+  if (mockBtn) mockBtn.hidden = false;
+}
+
+function sendViaPage({ method, url, headers, body }) {
+  return new Promise((resolve) => {
+    if (inspectedTabId == null) {
+      resolve({ ok: false, error: "No inspected tab — open DevTools on a normal page tab.", via: "page" });
+      return;
+    }
+    const hasBody = body && method !== "GET" && method !== "HEAD";
+    const expr = `(async function(){
+      const t0 = performance.now();
+      try {
+        const opts = { method: ${JSON.stringify(method)}, credentials: "include", headers: ${JSON.stringify(headers)} };
+        ${hasBody ? `opts.body = ${JSON.stringify(body)};` : ""}
+        const res = await fetch(${JSON.stringify(url)}, opts);
+        const text = await res.text();
+        const hdrs = {};
+        res.headers.forEach(function(v, k) { hdrs[k] = v; });
+        var b = text;
+        if (b.length > 1000000) b = b.slice(0, 1000000) + "\\n\\n... [response truncated] ...";
+        return { ok: true, status: res.status, statusText: res.statusText, headers: hdrs, body: b, ms: Math.round(performance.now() - t0), via: "page" };
+      } catch (e) {
+        return { ok: false, error: String(e && e.message ? e.message : e), ms: Math.round(performance.now() - t0), via: "page" };
+      }
+    })()`;
+    chrome.devtools.inspectedWindow.eval(expr, (result, exceptionInfo) => {
+      if (exceptionInfo && exceptionInfo.isException) {
+        resolve({
+          ok: false,
+          error: String(exceptionInfo.value || exceptionInfo.description || "Page eval failed"),
+          via: "page"
+        });
+        return;
+      }
+      resolve(result || { ok: false, error: "Empty result from page", via: "page" });
+    });
+  });
+}
+
+async function executeSend() {
+  let req;
+  try {
+    req = readSendRequestFromForm();
+  } catch (e) {
+    setStatus(e?.message || String(e), "warn");
+    return;
+  }
+  if (!req.url) {
+    setStatus("URL is required", "warn");
+    return;
+  }
+
+  const sendBtn = document.getElementById("sendBtn");
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending…";
+  }
+  setStatus(getSendMode() === "page" ? "Sending via page…" : "Sending direct…");
+
+  try {
+    let result;
+    if (getSendMode() === "page") {
+      result = await sendViaPage(req);
+    } else {
+      result = await sendToBg({
+        type: "SEND_HTTP",
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body: req.body
+      });
+    }
+    renderSendResult(result);
+    if (result?.ok) setStatus("Response received", "ok");
+    else setStatus(result?.error || "Request failed", "warn");
+  } catch (e) {
+    renderSendResult({ ok: false, error: e?.message || String(e), via: getSendMode() });
+    setStatus(e?.message || String(e), "warn");
+  } finally {
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send";
+    }
+  }
+}
+
+async function createMockFromSendResponse() {
+  if (!lastSendResult?.ok) return;
+  const req = readSendRequestFromForm();
+  const headers = { ...(lastSendResult.headers || {}) };
+  if (Object.keys(headers).length === 0) {
+    headers["Content-Type"] = "text/plain; charset=utf-8";
+  }
+  const res = await sendToBg({
+    type: "ADD_RULE",
+    rule: {
+      urlRegex: req.url,
+      status: lastSendResult.status || 200,
+      headers,
+      body: lastSendResult.body != null ? String(lastSendResult.body) : "",
+      enabled: true
+    }
+  });
+  if (res?.ok) {
+    rulesCache = res.rules || rulesCache;
+    setStatus("Mock rule created from Send response", "ok");
+    setActiveView("rules");
+    await refreshMatchMap();
+    renderRulesTable();
+    renderCapturedTable();
+    if (res.rule) openRuleEditor(res.rule);
+  } else {
+    setStatus(res?.error || "Create mock failed", "warn");
+  }
+}
+
+function wireSend() {
+  document.getElementById("sendBtn")?.addEventListener("click", () => void executeSend());
+  document.getElementById("sendMockBtn")?.addEventListener("click", () => void createMockFromSendResponse());
+  document.getElementById("edReplaySend")?.addEventListener("click", () => {
+    if (replayCaptureItem) fillSendFromCapture(replayCaptureItem);
+  });
+  document.getElementById("sendUrl")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void executeSend();
+  });
 }
 
 function seedFromHar() {
@@ -908,6 +1147,7 @@ async function main() {
   wireNavTabs();
   wireSplitter();
   wireDetailEditor();
+  wireSend();
   setActiveView("captured");
   inspectedTabId = getInspectedTabId();
   const line = document.getElementById("tabIdLine");
