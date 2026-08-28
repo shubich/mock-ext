@@ -1,3 +1,5 @@
+**English** | [Русский](README.ru.md)
+
 # MockWeave (Chrome extension)
 
 **MockWeave** intercepts page traffic with the Chrome **DevTools Protocol** (`Fetch` domain) and `chrome.debugger`. It works **per tab** while the feature is on.
