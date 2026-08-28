@@ -168,11 +168,28 @@
         </main>
 
         <section class="sendPane" id="sendPane" hidden>
-          <div class="sendLayout">
+          <div class="sendOuter">
+            <aside class="sendSavedCol">
+              <div class="sendBlockHeader">
+                <h2>Saved</h2>
+                <button type="button" class="btn sm" id="sendSavedNew" title="Clear form for a new request">New</button>
+              </div>
+              <p class="hint sendSavedHint">Click a saved request to load it. Save stores method, URL, headers, body, and send mode.</p>
+              <div id="sendSavedList" class="sendSavedList muted">No saved requests yet.</div>
+            </aside>
+
+            <div class="sendLayout">
             <div class="sendCol sendRequest">
               <div class="sendBlockHeader">
                 <h2>Request</h2>
-                <button type="button" class="btn primary" id="sendBtn">Send</button>
+                <div class="btnRow">
+                  <button type="button" class="btn sm" id="sendSaveBtn" title="Save or update the current request">Save</button>
+                  <button type="button" class="btn sm" id="sendSaveAsBtn" title="Save as a new named request">Save as…</button>
+                  <button type="button" class="btn sm danger" id="sendDeleteSavedBtn" hidden title="Delete selected saved request">
+                    Delete
+                  </button>
+                  <button type="button" class="btn primary" id="sendBtn">Send</button>
+                </div>
               </div>
               <div class="fieldRow sendMethodRow">
                 <label class="field methodField">
@@ -205,7 +222,15 @@
               </fieldset>
               <label class="field">
                 <div class="label">Request headers (JSON object)</div>
-                <textarea id="sendReqHeaders" class="ta taHeaders" spellcheck="false" placeholder='{\n  "Accept": "application/json"\n}'></textarea>
+                <textarea
+                  id="sendReqHeaders"
+                  class="ta taHeaders"
+                  spellcheck="false"
+                  placeholder='{
+  "Authorization": "Bearer eyJhbGciOiJIUzI1NiIs...",
+  "Accept": "application/json"
+}'
+                ></textarea>
               </label>
               <label class="field fieldGrow">
                 <div class="label">Request body</div>
@@ -228,6 +253,7 @@
                 <textarea id="sendResBody" class="ta taBody" readonly spellcheck="false"></textarea>
               </label>
             </div>
+          </div>
           </div>
         </section>
       </div>

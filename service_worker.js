@@ -2,10 +2,14 @@ const DEBUGGER_PROTOCOL_VERSION = "1.3";
 
 const STORAGE_KEYS = {
   rules: "rules",
-  enabledTabIds: "enabledTabIds"
+  enabledTabIds: "enabledTabIds",
+  savedRequests: "savedRequests"
 };
 
 /**
+ * Saved Send request (chrome.storage.local):
+ * { id, name, method, url, headers, body, sendMode: "direct"|"page", updatedAt }
+ *
  * Rule shape (stored in chrome.storage.local):
  * {
  *   id, enabled, urlRegex,
@@ -33,6 +37,11 @@ async function setInStorage(obj) {
 async function getRules() {
   const { [STORAGE_KEYS.rules]: rules } = await getFromStorage([STORAGE_KEYS.rules]);
   return Array.isArray(rules) ? rules : [];
+}
+
+async function getSavedRequests() {
+  const { [STORAGE_KEYS.savedRequests]: list } = await getFromStorage([STORAGE_KEYS.savedRequests]);
+  return Array.isArray(list) ? list : [];
 }
 
 async function getEnabledTabIds() {
@@ -631,6 +640,56 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           via: "extension"
         });
       }
+    }
+
+    if (type === "GET_SAVED_REQUESTS") {
+      return sendResponse({ ok: true, savedRequests: await getSavedRequests() });
+    }
+
+    if (type === "UPSERT_SAVED_REQUEST") {
+      const partial = msg.request && typeof msg.request === "object" ? msg.request : {};
+      const url = String(partial.url || "").trim();
+      const name = String(partial.name || "").trim();
+      if (!name) return sendResponse({ ok: false, error: "Name is required" });
+      if (!url) return sendResponse({ ok: false, error: "URL is required" });
+      const method = String(partial.method || "GET").toUpperCase();
+      const sendMode = partial.sendMode === "page" ? "page" : "direct";
+      const headersIn =
+        partial.headers && typeof partial.headers === "object" && !Array.isArray(partial.headers)
+          ? partial.headers
+          : {};
+      const headers = {};
+      for (const [k, v] of Object.entries(headersIn)) headers[String(k)] = String(v);
+      const body = partial.body != null ? String(partial.body) : "";
+      const list = await getSavedRequests();
+      const id =
+        partial.id && list.some((r) => r && r.id === partial.id)
+          ? String(partial.id)
+          : `saved-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const entry = {
+        id,
+        name,
+        method,
+        url,
+        headers,
+        body,
+        sendMode,
+        updatedAt: Date.now()
+      };
+      const without = list.filter((r) => r && r.id !== id);
+      without.unshift(entry);
+      const next = without.slice(0, 100);
+      await setInStorage({ [STORAGE_KEYS.savedRequests]: next });
+      return sendResponse({ ok: true, request: entry, savedRequests: next });
+    }
+
+    if (type === "DELETE_SAVED_REQUEST") {
+      const id = String(msg.id || "");
+      if (!id) return sendResponse({ ok: false, error: "Missing id" });
+      const list = await getSavedRequests();
+      const next = list.filter((r) => r && r.id !== id);
+      await setInStorage({ [STORAGE_KEYS.savedRequests]: next });
+      return sendResponse({ ok: true, savedRequests: next });
     }
 
     return sendResponse({ ok: false, error: "Unknown message type" });

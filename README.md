@@ -45,6 +45,7 @@ Full-height panel (like Redux DevTools): **Captured**, **Rules**, and **Send** (
   - **Direct** — extension calls the real API (mocks do **not** apply; no page CORS).
   - **Via page** — `fetch` in the inspected tab (mocks and cookies apply; enable intercept first).
   - **Create mock from response** after a successful send.
+  - **Saved requests** — sidebar on Send; **Save** / **Save as…** / **Delete**; stored in `chrome.storage.local` (JWT in headers is saved with the request).
 
 ## URL matching
 

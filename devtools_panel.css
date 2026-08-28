@@ -69,8 +69,80 @@ h2 {
   display: none !important;
 }
 
+.sendOuter {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sendSavedCol {
+  flex: 0 0 220px;
+  width: 220px;
+  min-width: 180px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  padding: 12px 10px;
+  background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.sendSavedHint {
+  font-size: 10px;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.sendSavedList {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 0;
+  font-size: 11px;
+}
+
+.sendSavedItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.sendSavedItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+}
+
+.sendSavedItem.selected {
+  background: rgba(23, 178, 106, 0.12);
+  border-color: rgba(23, 178, 106, 0.35);
+}
+
+.sendSavedName {
+  font-weight: 600;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+
+.sendSavedMeta {
+  color: var(--muted);
+  font-size: 10px;
+  word-break: break-all;
+}
+
 .sendLayout {
   flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 0;

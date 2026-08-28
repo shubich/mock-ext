@@ -70,6 +70,8 @@ let selectedCapturedCid = null;
 let selectedRuleId = null;
 let lastSendResult = null;
 let replayCaptureItem = null;
+let savedRequestsCache = [];
+let activeSavedRequestId = null;
 
 function sendToBg(msg) {
   return new Promise((resolve) => {
@@ -343,6 +345,7 @@ function setActiveView(view) {
   if (splitter) splitter.hidden = isSend;
   if (detailPane) detailPane.hidden = isSend;
   if (sendPane) sendPane.hidden = !isSend;
+  if (isSend) void loadSavedRequests();
 }
 
 function showDetailEmpty() {
@@ -771,20 +774,185 @@ function clearSendResponse() {
   if (mockBtn) mockBtn.hidden = true;
 }
 
-function fillSendFromCapture(item) {
-  if (!item) return;
+function setSendMode(mode) {
+  const v = mode === "page" ? "page" : "direct";
+  const el = document.querySelector(`input[name="sendMode"][value="${v}"]`);
+  if (el) el.checked = true;
+}
+
+function updateSendDeleteButton() {
+  const btn = document.getElementById("sendDeleteSavedBtn");
+  if (btn) btn.hidden = !activeSavedRequestId;
+}
+
+function defaultSavedRequestName(url, method) {
+  try {
+    const u = new URL(url);
+    const tail = u.pathname.split("/").filter(Boolean).slice(-2).join("/") || u.hostname;
+    return `${method} ${tail}`.slice(0, 72);
+  } catch {
+    return `${method} request`.slice(0, 72);
+  }
+}
+
+function fillSendForm({ method, url, headers, body, sendMode, savedId = null }) {
   const methodEl = document.getElementById("sendMethod");
   const urlEl = document.getElementById("sendUrl");
   const reqHeadersEl = document.getElementById("sendReqHeaders");
   const reqBodyEl = document.getElementById("sendReqBody");
-  if (methodEl) methodEl.value = item.method || "GET";
-  if (urlEl) urlEl.value = item.url || "";
+  if (methodEl) methodEl.value = method || "GET";
+  if (urlEl) urlEl.value = url || "";
+  const rh =
+    headers && typeof headers === "object" && Object.keys(headers).length
+      ? headers
+      : { Accept: "application/json" };
+  if (reqHeadersEl) reqHeadersEl.value = JSON.stringify(rh, null, 2);
+  if (reqBodyEl) reqBodyEl.value = body != null ? String(body) : "";
+  if (sendMode) setSendMode(sendMode);
+  activeSavedRequestId = savedId;
+  updateSendDeleteButton();
+  renderSavedRequestsList();
+}
+
+function newSendForm() {
+  activeSavedRequestId = null;
+  fillSendForm({
+    method: "GET",
+    url: "",
+    headers: {},
+    body: "",
+    sendMode: "direct",
+    savedId: null
+  });
+  clearSendResponse();
+  setStatus("New request", "ok");
+}
+
+async function loadSavedRequests() {
+  const res = await sendToBg({ type: "GET_SAVED_REQUESTS" });
+  if (res?.ok) {
+    savedRequestsCache = Array.isArray(res.savedRequests) ? res.savedRequests : [];
+    renderSavedRequestsList();
+  }
+}
+
+function renderSavedRequestsList() {
+  const list = document.getElementById("sendSavedList");
+  if (!list) return;
+  if (!savedRequestsCache.length) {
+    list.innerHTML = `<div class="muted">No saved requests yet. Fill the form and click Save.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  for (const item of savedRequestsCache) {
+    if (!item) continue;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sendSavedItem" + (item.id === activeSavedRequestId ? " selected" : "");
+    btn.innerHTML = `<div class="sendSavedName">${escapeHtml(item.name || "(unnamed)")}</div><div class="sendSavedMeta">${escapeHtml(item.method || "GET")} · ${escapeHtml(item.url || "")}</div>`;
+    btn.addEventListener("click", () => {
+      fillSendFromSaved(item);
+      clearSendResponse();
+      setStatus(`Loaded “${item.name}”`, "ok");
+    });
+    list.appendChild(btn);
+  }
+}
+
+function fillSendFromSaved(item) {
+  if (!item) return;
+  fillSendForm({
+    method: item.method,
+    url: item.url,
+    headers: item.headers,
+    body: item.body,
+    sendMode: item.sendMode,
+    savedId: item.id
+  });
+  setActiveView("send");
+}
+
+async function saveCurrentRequest(forceNew = false) {
+  let req;
+  try {
+    req = readSendRequestFromForm();
+  } catch (e) {
+    setStatus(e?.message || String(e), "warn");
+    return;
+  }
+  if (!req.url) {
+    setStatus("URL is required to save", "warn");
+    return;
+  }
+  const existing =
+    !forceNew && activeSavedRequestId
+      ? savedRequestsCache.find((r) => r && r.id === activeSavedRequestId)
+      : null;
+  let name = existing?.name || "";
+  if (forceNew || !existing) {
+    const suggested = defaultSavedRequestName(req.url, req.method);
+    const entered = window.prompt(forceNew ? "Save as (name):" : "Name this request:", name || suggested);
+    if (entered == null) return;
+    name = entered.trim();
+    if (!name) {
+      setStatus("Name is required", "warn");
+      return;
+    }
+  }
+  const res = await sendToBg({
+    type: "UPSERT_SAVED_REQUEST",
+    request: {
+      id: forceNew ? undefined : activeSavedRequestId || undefined,
+      name,
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body,
+      sendMode: getSendMode()
+    }
+  });
+  if (res?.ok) {
+    savedRequestsCache = res.savedRequests || savedRequestsCache;
+    if (res.request) activeSavedRequestId = res.request.id;
+    renderSavedRequestsList();
+    updateSendDeleteButton();
+    setStatus(forceNew || !existing ? "Request saved" : "Request updated", "ok");
+  } else {
+    setStatus(res?.error || "Save failed", "warn");
+  }
+}
+
+async function deleteActiveSavedRequest() {
+  if (!activeSavedRequestId) return;
+  const item = savedRequestsCache.find((r) => r && r.id === activeSavedRequestId);
+  const label = item?.name || "this request";
+  if (!window.confirm(`Delete saved request “${label}”?`)) return;
+  const res = await sendToBg({ type: "DELETE_SAVED_REQUEST", id: activeSavedRequestId });
+  if (res?.ok) {
+    savedRequestsCache = res.savedRequests || [];
+    activeSavedRequestId = null;
+    updateSendDeleteButton();
+    renderSavedRequestsList();
+    setStatus("Saved request deleted", "ok");
+  } else {
+    setStatus(res?.error || "Delete failed", "warn");
+  }
+}
+
+function fillSendFromCapture(item) {
+  if (!item) return;
   const rh =
     item.reqHeaders && Object.keys(item.reqHeaders).length
       ? item.reqHeaders
       : { Accept: "application/json" };
-  if (reqHeadersEl) reqHeadersEl.value = JSON.stringify(rh, null, 2);
-  if (reqBodyEl) reqBodyEl.value = item.reqBody != null ? String(item.reqBody) : "";
+  fillSendForm({
+    method: item.method,
+    url: item.url,
+    headers: rh,
+    body: item.reqBody,
+    sendMode: "page",
+    savedId: null
+  });
   clearSendResponse();
   setActiveView("send");
   setStatus("Loaded captured request into Send", "ok");
@@ -944,6 +1112,10 @@ async function createMockFromSendResponse() {
 function wireSend() {
   document.getElementById("sendBtn")?.addEventListener("click", () => void executeSend());
   document.getElementById("sendMockBtn")?.addEventListener("click", () => void createMockFromSendResponse());
+  document.getElementById("sendSaveBtn")?.addEventListener("click", () => void saveCurrentRequest(false));
+  document.getElementById("sendSaveAsBtn")?.addEventListener("click", () => void saveCurrentRequest(true));
+  document.getElementById("sendDeleteSavedBtn")?.addEventListener("click", () => void deleteActiveSavedRequest());
+  document.getElementById("sendSavedNew")?.addEventListener("click", () => newSendForm());
   document.getElementById("edReplaySend")?.addEventListener("click", () => {
     if (replayCaptureItem) fillSendFromCapture(replayCaptureItem);
   });
@@ -1221,6 +1393,12 @@ async function main() {
   await renderAll();
 
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.savedRequests) {
+      savedRequestsCache = Array.isArray(changes.savedRequests.newValue)
+        ? changes.savedRequests.newValue
+        : [];
+      renderSavedRequestsList();
+    }
     if (area === "local" && changes.rules) {
       (async () => {
         if (inspectedTabId != null) {
