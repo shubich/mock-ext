@@ -65,6 +65,9 @@ let _renderTimer = null;
 let filterCaptured = "";
 let filterRules = "";
 let editingRuleId = null;
+let activeView = "captured";
+let selectedCapturedCid = null;
+let selectedRuleId = null;
 
 function sendToBg(msg) {
   return new Promise((resolve) => {
@@ -298,6 +301,172 @@ async function loadState() {
   if (t) t.checked = !!res.enabled;
 }
 
+function setActiveView(view) {
+  activeView = view === "rules" ? "rules" : "captured";
+  for (const btn of document.querySelectorAll(".navTab")) {
+    const on = btn.getAttribute("data-view") === activeView;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  }
+  const capPane = document.getElementById("capturedPane");
+  const rulesPane = document.getElementById("rulesPane");
+  const capTools = document.getElementById("capturedTools");
+  const rulesTools = document.getElementById("rulesTools");
+  if (capPane) capPane.hidden = activeView !== "captured";
+  if (rulesPane) rulesPane.hidden = activeView !== "rules";
+  if (capTools) capTools.hidden = activeView !== "captured";
+  if (rulesTools) rulesTools.hidden = activeView !== "rules";
+}
+
+function showDetailEmpty() {
+  editingRuleId = null;
+  selectedRuleId = null;
+  selectedCapturedCid = null;
+  const empty = document.getElementById("detailEmpty");
+  const editor = document.getElementById("detailEditor");
+  if (empty) empty.hidden = false;
+  if (editor) editor.hidden = true;
+  for (const tr of document.querySelectorAll("tbody tr.selected")) {
+    tr.classList.remove("selected");
+  }
+}
+
+function showCapturePreview(item) {
+  if (!item) return;
+  selectedCapturedCid = item.cid;
+  selectedRuleId = null;
+  editingRuleId = null;
+  const empty = document.getElementById("detailEmpty");
+  const editor = document.getElementById("detailEditor");
+  const title = document.getElementById("editRuleTitle");
+  const delBtn = document.getElementById("edDelete");
+  const saveBtn = document.getElementById("edSave");
+  const cancelBtn = document.getElementById("edCancel");
+  if (!editor || !title) return;
+  if (empty) empty.hidden = true;
+  editor.hidden = false;
+  if (delBtn) delBtn.hidden = true;
+  if (saveBtn) saveBtn.hidden = true;
+  if (cancelBtn) cancelBtn.textContent = "Close";
+
+  const rule = matchByUrl.get(item.url) || null;
+  title.textContent = rule ? "Captured request (mocked)" : "Captured request";
+
+  const edUrl = document.getElementById("edUrl");
+  const edKind = document.getElementById("edKind");
+  const edStatus = document.getElementById("edStatus");
+  const edHeaders = document.getElementById("edHeaders");
+  const edBody = document.getElementById("edBody");
+  const edReqMethod = document.getElementById("edReqMethod");
+  const edReqUrl = document.getElementById("edReqUrl");
+  const edReqHeaders = document.getElementById("edReqHeaders");
+  const edReqBody = document.getElementById("edReqBody");
+  const edUrlIncluded = document.getElementById("edUrlIncluded");
+  if (!edUrl || !edKind || !edStatus || !edHeaders || !edBody) return;
+
+  if (rule) {
+    openRuleEditor(rule, { keepSelection: true });
+    return;
+  }
+
+  edKind.value = "response";
+  edUrl.value = item.url;
+  if (edUrlIncluded) edUrlIncluded.checked = false;
+  edStatus.value = String(item.status > 0 ? item.status : 200);
+  const h = item.resHeaders && typeof item.resHeaders === "object" ? item.resHeaders : {};
+  edHeaders.value = Object.keys(h).length ? JSON.stringify(h, null, 2) : '{\n  "Content-Type": "application/json"\n}';
+  edBody.value = item.resBody != null ? String(item.resBody) : "";
+  if (edReqMethod) edReqMethod.value = "";
+  if (edReqUrl) edReqUrl.value = "";
+  if (edReqHeaders) edReqHeaders.value = "";
+  if (edReqBody) edReqBody.value = "";
+  syncEdModalMode();
+
+  for (const id of ["edUrl", "edKind", "edStatus", "edHeaders", "edBody", "edUrlIncluded"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  }
+  for (const id of ["edReqMethod", "edReqUrl", "edReqHeaders", "edReqBody"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  }
+
+  if (saveBtn) {
+    saveBtn.hidden = false;
+    saveBtn.textContent = item.bodyLoadState === "loading" ? "Waiting for body…" : "Create mock";
+    saveBtn.disabled = item.bodyLoadState === "loading";
+  }
+  highlightSelectedRows();
+}
+
+function enableEditorFields() {
+  for (const id of [
+    "edUrl",
+    "edKind",
+    "edStatus",
+    "edHeaders",
+    "edBody",
+    "edUrlIncluded",
+    "edReqMethod",
+    "edReqUrl",
+    "edReqHeaders",
+    "edReqBody"
+  ]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = false;
+  }
+  const saveBtn = document.getElementById("edSave");
+  if (saveBtn) {
+    saveBtn.textContent = "Save";
+    saveBtn.disabled = false;
+  }
+  const cancelBtn = document.getElementById("edCancel");
+  if (cancelBtn) cancelBtn.textContent = "Close";
+}
+
+async function createMockFromCapture(cid) {
+  let ent = captured.find((x) => x.cid === cid);
+  if (!ent) return;
+  if (ent.bodyLoadState === "loading") {
+    setStatus("Waiting for response body…", "muted");
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      ent = captured.find((x) => x.cid === cid);
+      if (!ent) return;
+      if (ent.bodyLoadState !== "loading") break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+  ent = captured.find((x) => x.cid === cid);
+  if (!ent) return;
+  const status = ent.status > 0 ? ent.status : 200;
+  const headers = { ...ent.resHeaders };
+  if (Object.keys(headers).length === 0) {
+    headers["Content-Type"] = "text/plain; charset=utf-8";
+  }
+  const resBody = ent.resBody != null ? ent.resBody : "";
+  const res = await sendToBg({
+    type: "ADD_RULE",
+    rule: {
+      urlRegex: ent.url,
+      status,
+      headers,
+      body: resBody,
+      enabled: true
+    }
+  });
+  if (res?.ok) {
+    rulesCache = res.rules || rulesCache;
+    setStatus("Mock created — edit on the right", "ok");
+    setActiveView("rules");
+    await refreshMatchMap();
+    renderRulesTable();
+    renderCapturedTable();
+    if (res.rule) openRuleEditor(res.rule);
+  } else {
+    setStatus(res?.error || "Add rule failed", "warn");
+  }
+}
 function parseHeadersJsonFromPanel(text) {
   const trimmed = (text || "").trim();
   if (!trimmed) return {};
@@ -318,10 +487,18 @@ function syncEdModalMode() {
   if (req) req.hidden = kind !== "request";
 }
 
-function openRuleEditor(rule) {
+function openRuleEditor(rule, opts = {}) {
   if (!rule) return;
+  enableEditorFields();
   editingRuleId = rule.id;
-  const modal = document.getElementById("ruleModal");
+  selectedRuleId = rule.id;
+  if (!opts.keepSelection) selectedCapturedCid = null;
+
+  const empty = document.getElementById("detailEmpty");
+  const editor = document.getElementById("detailEditor");
+  const title = document.getElementById("editRuleTitle");
+  const delBtn = document.getElementById("edDelete");
+  const saveBtn = document.getElementById("edSave");
   const edUrl = document.getElementById("edUrl");
   const edKind = document.getElementById("edKind");
   const edStatus = document.getElementById("edStatus");
@@ -332,7 +509,18 @@ function openRuleEditor(rule) {
   const edReqHeaders = document.getElementById("edReqHeaders");
   const edReqBody = document.getElementById("edReqBody");
   const edUrlIncluded = document.getElementById("edUrlIncluded");
-  if (!modal || !edUrl || !edKind || !edStatus || !edHeaders || !edBody) return;
+  if (!editor || !edUrl || !edKind || !edStatus || !edHeaders || !edBody) return;
+
+  if (empty) empty.hidden = true;
+  editor.hidden = false;
+  if (title) title.textContent = "Edit rule";
+  if (delBtn) delBtn.hidden = false;
+  if (saveBtn) {
+    saveBtn.hidden = false;
+    saveBtn.textContent = "Save";
+    saveBtn.disabled = false;
+  }
+
   const full = findRuleById(rule.id) || rule;
   const kind = full.mockKind === "request" ? "request" : "response";
   edKind.value = kind;
@@ -340,8 +528,7 @@ function openRuleEditor(rule) {
   if (edUrlIncluded) edUrlIncluded.checked = !!full.urlIncluded;
   edStatus.value = String(full.status != null && full.status > 0 ? full.status : 200);
   const h = full.headers && typeof full.headers === "object" ? full.headers : {};
-  const prettyH = Object.keys(h).length ? JSON.stringify(h, null, 2) : "";
-  edHeaders.value = prettyH;
+  edHeaders.value = Object.keys(h).length ? JSON.stringify(h, null, 2) : "";
   edBody.value = full.body != null ? String(full.body) : "";
   if (edReqMethod) edReqMethod.value = full.requestMethod || "";
   if (edReqUrl) edReqUrl.value = full.requestUrl || "";
@@ -358,7 +545,8 @@ function openRuleEditor(rule) {
       : "";
   }
   syncEdModalMode();
-  modal.hidden = false;
+  highlightSelectedRows();
+  setActiveView("rules");
   setTimeout(() => {
     if (kind === "request" && edReqBody) edReqBody.focus();
     else if (edBody) edBody.focus();
@@ -366,9 +554,16 @@ function openRuleEditor(rule) {
 }
 
 function closeRuleEditor() {
-  editingRuleId = null;
-  const modal = document.getElementById("ruleModal");
-  if (modal) modal.hidden = true;
+  showDetailEmpty();
+}
+
+function highlightSelectedRows() {
+  for (const tr of document.querySelectorAll("#capturedBody tr")) {
+    tr.classList.toggle("selected", tr.getAttribute("data-cid") === selectedCapturedCid);
+  }
+  for (const tr of document.querySelectorAll("#rulesBody tr")) {
+    tr.classList.toggle("selected", tr.getAttribute("data-id") === selectedRuleId);
+  }
 }
 
 function renderRulesTable() {
@@ -376,11 +571,11 @@ function renderRulesTable() {
   if (!body) return;
   const list = getFilteredRules();
   if (!rulesCache.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">No rules yet. Mock a request above or add rules in the extension popup.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">No rules yet. Select a captured request and click Create mock, or add rules in the toolbar popup.</td></tr>`;
     return;
   }
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">No rules match the filter. Clear the search or change the query.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">No rules match the filter. Clear the search or change the query.</td></tr>`;
     return;
   }
   body.innerHTML = "";
@@ -394,6 +589,8 @@ function renderRulesTable() {
       ? `<span class="kindInc" title="URL must contain this pattern (substring)">INC</span> `
       : "";
     const tr = document.createElement("tr");
+    tr.setAttribute("data-id", r.id);
+    if (selectedRuleId === r.id) tr.classList.add("selected");
     const short = (r.urlRegex || "").length > 100 ? (r.urlRegex || "").slice(0, 100) + "…" : r.urlRegex || "";
     const statusCell = isReq
       ? `<td class="muted" title="Not used in request-override mode">—</td>`
@@ -406,16 +603,15 @@ function renderRulesTable() {
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
       <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || "(empty)")}</td>
-      <td>
-        <div class="btnRow">
-          <button type="button" class="btn sm editRule" data-id="${escapeAttr(r.id)}">Edit</button>
-          <button type="button" class="btn danger sm delRule" data-id="${escapeAttr(r.id)}">Delete</button>
-        </div>
-      </td>
     `;
+    tr.addEventListener("click", (e) => {
+      if (e.target.closest("input")) return;
+      openRuleEditor(r);
+    });
     body.appendChild(tr);
   }
   for (const cb of body.querySelectorAll("input.ruleOn")) {
+    cb.addEventListener("click", (e) => e.stopPropagation());
     cb.addEventListener("change", async (e) => {
       const id = e.target.getAttribute("data-id");
       const res = await sendToBg({ type: "PATCH_RULE", id, enabled: e.target.checked });
@@ -429,6 +625,7 @@ function renderRulesTable() {
     });
   }
   for (const inp of body.querySelectorAll("input.statusIn")) {
+    inp.addEventListener("click", (e) => e.stopPropagation());
     const apply = async (e) => {
       const id = e.target.getAttribute("data-id");
       const n = Number(e.target.value);
@@ -449,29 +646,6 @@ function renderRulesTable() {
     };
     inp.addEventListener("change", apply);
   }
-  for (const b of body.querySelectorAll("button.editRule")) {
-    b.addEventListener("click", (e) => {
-      const id = e.target.getAttribute("data-id");
-      const rule = findRuleById(id);
-      if (rule) openRuleEditor(rule);
-    });
-  }
-  for (const b of body.querySelectorAll("button.delRule")) {
-    b.addEventListener("click", async (e) => {
-      const id = e.target.getAttribute("data-id");
-      const res = await sendToBg({ type: "DELETE_RULE", id });
-      if (res?.ok) {
-        rulesCache = res.rules || [];
-        if (editingRuleId === id) closeRuleEditor();
-        renderRulesTable();
-        await refreshMatchMap();
-        renderCapturedTable();
-        setStatus("Rule deleted", "ok");
-      } else {
-        setStatus(res?.error || "Delete failed", "warn");
-      }
-    });
-  }
 }
 
 function escapeHtml(s) {
@@ -491,91 +665,39 @@ function renderCapturedTable() {
   if (!body) return;
   const shown = getFilteredCaptured();
   if (!captured.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">No requests captured yet. Trigger API calls, or hard-reload the page with DevTools open (Network: disable cache) to capture more.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">No requests captured yet. Trigger API calls, or hard-reload the page with DevTools open (Network: disable cache).</td></tr>`;
     return;
   }
   if (!shown.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">No requests match the URL filter.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">No requests match the URL filter.</td></tr>`;
     return;
   }
   body.innerHTML = "";
   for (const c of shown) {
     const rule = matchByUrl.get(c.url) || null;
     const tr = document.createElement("tr");
+    tr.setAttribute("data-cid", c.cid);
+    if (selectedCapturedCid === c.cid) tr.classList.add("selected");
     const bodyLabel =
       c.bodyLoadState === "loading"
         ? " ⏳"
         : c.bodyLoadState === "error"
           ? " ⚠"
           : "";
-    const actionCell = rule
-      ? `<div class="btnRow"><span class="tag ${
-          rule.mockKind === "request" ? "tagReq" : "tag"
-        }">${rule.mockKind === "request" ? "Request" : "Response"}</span><button type="button" class="btn sm editFromCap" data-rule-id="${escapeAttr(
-          rule.id
-        )}">Edit</button></div>`
-      : `<button type="button" class="btn sm mockBtn" data-cid="${escapeAttr(
-          c.cid
-        )}" title="Create mock from this response (body copies when available)">Mock</button>`;
+    const mockLabel = rule
+      ? `<span class="mockBadge ${rule.mockKind === "request" ? "tagReq" : "tag"}">${rule.mockKind === "request" ? "REQ" : "RES"}</span>`
+      : "";
     tr.innerHTML = `
       <td>${escapeHtml(c.method)}</td>
       <td>${c.status != null && c.status !== 0 ? escapeHtml(String(c.status)) : "—"}${bodyLabel ? `<span class="bodyHint" title="Response body capture">${bodyLabel}</span>` : ""}</td>
-      <td class="urlCell" title="${escapeAttr(c.url)}">${escapeHtml(c.url)}</td>
-      <td class="thActions">${actionCell}</td>
+      <td class="urlCell" title="${escapeAttr(c.url)}">${mockLabel}${escapeHtml(c.url)}</td>
     `;
+    tr.addEventListener("click", () => {
+      setActiveView("captured");
+      showCapturePreview(c);
+      highlightSelectedRows();
+    });
     body.appendChild(tr);
-  }
-  for (const b of body.querySelectorAll("button.mockBtn")) {
-    b.addEventListener("click", async (e) => {
-      const cid = e.target.getAttribute("data-cid");
-      let ent = captured.find((x) => x.cid === cid);
-      if (!ent) return;
-      if (ent.bodyLoadState === "loading") {
-        setStatus("Waiting for response body…", "muted");
-        const deadline = Date.now() + 8000;
-        while (Date.now() < deadline) {
-          ent = captured.find((x) => x.cid === cid);
-          if (!ent) return;
-          if (ent.bodyLoadState !== "loading") break;
-          await new Promise((r) => setTimeout(r, 50));
-        }
-      }
-      ent = captured.find((x) => x.cid === cid);
-      if (!ent) return;
-      const status = ent.status > 0 ? ent.status : 200;
-      const headers = { ...ent.resHeaders };
-      if (Object.keys(headers).length === 0) {
-        headers["Content-Type"] = "text/plain; charset=utf-8";
-      }
-      const resBody = ent.resBody != null ? ent.resBody : "";
-      const res = await sendToBg({
-        type: "ADD_RULE",
-        rule: {
-          urlRegex: ent.url,
-          status,
-          headers,
-          body: resBody,
-          enabled: true
-        }
-      });
-      if (res?.ok) {
-        rulesCache = res.rules || rulesCache;
-        setStatus("Mock created from this response — edit below if needed", "ok");
-        await refreshMatchMap();
-        renderRulesTable();
-        renderCapturedTable();
-        if (res.rule) openRuleEditor(res.rule);
-      } else {
-        setStatus(res?.error || "Add rule failed", "warn");
-      }
-    });
-  }
-  for (const b of body.querySelectorAll("button.editFromCap")) {
-    b.addEventListener("click", (e) => {
-      const id = e.target.getAttribute("data-rule-id");
-      const rule = findRuleById(id);
-      if (rule) openRuleEditor(rule);
-    });
   }
 }
 
@@ -583,6 +705,12 @@ async function renderAll() {
   await refreshMatchMap();
   renderRulesTable();
   renderCapturedTable();
+  if (selectedCapturedCid && !editingRuleId) {
+    const item = captured.find((x) => x.cid === selectedCapturedCid);
+    if (item) showCapturePreview(item);
+  } else if (editingRuleId) {
+    highlightSelectedRows();
+  }
 }
 
 function seedFromHar() {
@@ -621,106 +749,173 @@ function wireFilterInputs() {
   }
 }
 
-function wireModal() {
-  const modal = document.getElementById("ruleModal");
+function wireNavTabs() {
+  for (const btn of document.querySelectorAll(".navTab")) {
+    btn.addEventListener("click", () => {
+      setActiveView(btn.getAttribute("data-view"));
+    });
+  }
+}
+
+function wireSplitter() {
+  const splitter = document.getElementById("splitter");
+  const sidebar = document.getElementById("sidebar");
+  const workspace = document.getElementById("workspace");
+  if (!splitter || !sidebar || !workspace) return;
+
+  let dragging = false;
+  const onMove = (clientX) => {
+    const rect = workspace.getBoundingClientRect();
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    const clamped = Math.min(55, Math.max(22, pct));
+    document.documentElement.style.setProperty("--sidebar-w", `${clamped}%`);
+  };
+
+  splitter.addEventListener("mousedown", (e) => {
+    dragging = true;
+    splitter.classList.add("dragging");
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    onMove(e.clientX);
+  });
+  window.addEventListener("mouseup", () => {
+    dragging = false;
+    splitter.classList.remove("dragging");
+  });
+}
+
+async function saveCurrentRule() {
+  if (!editingRuleId) return;
+  const edUrl = document.getElementById("edUrl");
+  const edKind = document.getElementById("edKind");
+  const edStatus = document.getElementById("edStatus");
+  const edHeaders = document.getElementById("edHeaders");
+  const edBody = document.getElementById("edBody");
+  const edReqMethod = document.getElementById("edReqMethod");
+  const edReqUrl = document.getElementById("edReqUrl");
+  const edReqHeaders = document.getElementById("edReqHeaders");
+  const edReqBody = document.getElementById("edReqBody");
+  const edUrlIncluded = document.getElementById("edUrlIncluded");
+  if (!edUrl) return;
+  const kind = edKind?.value === "request" ? "request" : "response";
+  const payload = {
+    type: "PATCH_RULE",
+    id: editingRuleId,
+    urlRegex: edUrl.value.trim(),
+    mockKind: kind,
+    urlIncluded: !!edUrlIncluded?.checked
+  };
+  if (kind === "response") {
+    if (!edStatus || !edHeaders || !edBody) return;
+    let headersObj;
+    if (edHeaders.value.trim()) {
+      try {
+        headersObj = parseHeadersJsonFromPanel(edHeaders.value);
+      } catch (err) {
+        setStatus(err?.message || String(err), "warn");
+        return;
+      }
+    }
+    Object.assign(payload, {
+      status: Number(edStatus.value) || 200,
+      body: edBody.value,
+      ...(headersObj !== undefined ? { headers: headersObj } : {})
+    });
+  } else {
+    let rHeaders;
+    if (edReqHeaders?.value?.trim()) {
+      try {
+        rHeaders = parseHeadersJsonFromPanel(edReqHeaders.value);
+      } catch (err) {
+        setStatus(err?.message || String(err), "warn");
+        return;
+      }
+    } else {
+      rHeaders = {};
+    }
+    const prev = findRuleById(editingRuleId);
+    const hadBody = prev && Object.prototype.hasOwnProperty.call(prev, "requestBody");
+    const rawBody = edReqBody?.value ?? "";
+    Object.assign(payload, {
+      requestMethod: edReqMethod?.value?.trim() || null,
+      requestUrl: edReqUrl?.value?.trim() || null,
+      requestHeaders: rHeaders
+    });
+    if (rawBody.trim() !== "" || hadBody) {
+      payload.requestBody = rawBody.trim() === "" ? null : rawBody;
+    }
+  }
+  const res = await sendToBg(payload);
+  if (res?.ok) {
+    rulesCache = res.rules || rulesCache;
+    setStatus("Rule saved", "ok");
+    await refreshMatchMap();
+    renderRulesTable();
+    renderCapturedTable();
+    const updated = findRuleById(editingRuleId);
+    if (updated) openRuleEditor(updated, { keepSelection: true });
+  } else {
+    setStatus(res?.error || "Save failed", "warn");
+  }
+}
+
+function wireDetailEditor() {
   const cancel = document.getElementById("edCancel");
   const save = document.getElementById("edSave");
+  const del = document.getElementById("edDelete");
   const edKind = document.getElementById("edKind");
   edKind?.addEventListener("change", () => syncEdModalMode());
   cancel?.addEventListener("click", () => closeRuleEditor());
   save?.addEventListener("click", async () => {
-    if (!editingRuleId) return;
-    const edUrl = document.getElementById("edUrl");
-    const edStatus = document.getElementById("edStatus");
-    const edHeaders = document.getElementById("edHeaders");
-    const edBody = document.getElementById("edBody");
-    const edReqMethod = document.getElementById("edReqMethod");
-    const edReqUrl = document.getElementById("edReqUrl");
-    const edReqHeaders = document.getElementById("edReqHeaders");
-    const edReqBody = document.getElementById("edReqBody");
-    if (!edUrl) return;
-    const kind = edKind?.value === "request" ? "request" : "response";
-    const edUrlIncluded = document.getElementById("edUrlIncluded");
-    const payload = {
-      type: "PATCH_RULE",
-      id: editingRuleId,
-      urlRegex: edUrl.value.trim(),
-      mockKind: kind,
-      urlIncluded: !!edUrlIncluded?.checked
-    };
-    if (kind === "response") {
-      if (!edStatus || !edHeaders || !edBody) return;
-      let headersObj;
-      if (edHeaders.value.trim()) {
-        try {
-          headersObj = parseHeadersJsonFromPanel(edHeaders.value);
-        } catch (err) {
-          setStatus(err?.message || String(err), "warn");
-          return;
-        }
-      }
-      Object.assign(payload, {
-        status: Number(edStatus.value) || 200,
-        body: edBody.value,
-        ...(headersObj !== undefined ? { headers: headersObj } : {})
-      });
-    } else {
-      let rHeaders;
-      if (edReqHeaders?.value?.trim()) {
-        try {
-          rHeaders = parseHeadersJsonFromPanel(edReqHeaders.value);
-        } catch (err) {
-          setStatus(err?.message || String(err), "warn");
-          return;
-        }
-      } else {
-        rHeaders = {};
-      }
-      const prev = findRuleById(editingRuleId);
-      const hadBody = prev && Object.prototype.hasOwnProperty.call(prev, "requestBody");
-      const rawBody = edReqBody?.value ?? "";
-      Object.assign(payload, {
-        requestMethod: edReqMethod?.value?.trim() || null,
-        requestUrl: edReqUrl?.value?.trim() || null,
-        requestHeaders: rHeaders
-      });
-      if (rawBody.trim() !== "" || hadBody) {
-        payload.requestBody = rawBody.trim() === "" ? null : rawBody;
-      }
+    if (editingRuleId) {
+      await saveCurrentRule();
+      return;
     }
-    const res = await sendToBg(payload);
-    if (res?.ok) {
-      rulesCache = res.rules || rulesCache;
-      setStatus("Rule saved", "ok");
-      closeRuleEditor();
-      await refreshMatchMap();
-      renderRulesTable();
-      renderCapturedTable();
-    } else {
-      setStatus(res?.error || "Save failed", "warn");
+    if (selectedCapturedCid) {
+      await createMockFromCapture(selectedCapturedCid);
     }
   });
-  modal?.addEventListener("click", (e) => {
-    if (e.target === modal) closeRuleEditor();
+  del?.addEventListener("click", async () => {
+    if (!editingRuleId) return;
+    const id = editingRuleId;
+    const res = await sendToBg({ type: "DELETE_RULE", id });
+    if (res?.ok) {
+      rulesCache = res.rules || [];
+      closeRuleEditor();
+      renderRulesTable();
+      await refreshMatchMap();
+      renderCapturedTable();
+      setStatus("Rule deleted", "ok");
+    } else {
+      setStatus(res?.error || "Delete failed", "warn");
+    }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && modal && !modal.hidden) {
-      e.preventDefault();
-      closeRuleEditor();
+    if (e.key === "Escape") {
+      const editor = document.getElementById("detailEditor");
+      if (editor && !editor.hidden) {
+        e.preventDefault();
+        closeRuleEditor();
+      }
     }
   });
 }
 
 async function main() {
   wireFilterInputs();
-  wireModal();
+  wireNavTabs();
+  wireSplitter();
+  wireDetailEditor();
+  setActiveView("captured");
   inspectedTabId = getInspectedTabId();
   const line = document.getElementById("tabIdLine");
   if (line) {
     line.textContent =
       inspectedTabId != null
-        ? `Inspected tab id: ${inspectedTabId} — enable mocking here or in the popup.`
-        : "Could not read inspected tab id. Update Chrome, or re-open DevTools on a normal page tab.";
+        ? `Inspected tab id: ${inspectedTabId} — enable mocking above. Open this tab from the DevTools bar (MockWeave).`
+        : "Could not read inspected tab id. Re-open DevTools on a normal page tab.";
   }
 
   if (inspectedTabId == null) {

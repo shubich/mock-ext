@@ -5,140 +5,165 @@
     <link rel="stylesheet" href="devtools_panel.css" />
   </head>
   <body>
-    <div class="toolbar">
-      <label class="row">
-        <input id="enabledToggle" type="checkbox" />
-        <span>Intercept HTTP for the inspected page (response mocks &amp; request overrides)</span>
-      </label>
-      <div id="tabIdLine" class="muted small"></div>
-    </div>
-
-    <div id="statusLine" class="status"></div>
-
-    <section class="section">
-      <div class="sectionHeader">
-        <h2>Captured requests</h2>
-        <div class="headerTools">
-          <input
-            type="search"
-            id="capturedFilter"
-            class="search"
-            placeholder="Filter by URL"
-            spellcheck="false"
-            aria-label="Filter captured requests by URL"
-          />
-          <button type="button" class="btn" id="clearCaptured">Clear</button>
-        </div>
-      </div>
-      <p class="hint">
-        Filled as requests complete while this DevTools window is open. Use <strong>Mock</strong> to
-        add a full-URL rule, or <strong>Edit</strong> for an already mocked URL.
-      </p>
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Method</th>
-              <th>Status</th>
-              <th>URL</th>
-              <th class="thActions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="capturedBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="sectionHeader">
-        <h2>Active mock rules</h2>
-        <div class="headerTools">
-          <input
-            type="search"
-            id="rulesFilter"
-            class="search"
-            placeholder="Filter URL, status, body"
-            spellcheck="false"
-            aria-label="Filter rules"
-          />
-          <button type="button" class="btn" id="refreshRules">Refresh</button>
-        </div>
-      </div>
-      <p class="hint">Edit status inline or use <strong>Edit</strong> for body and headers. Same storage as the popup.</p>
-      <div class="tableWrap tableWrapTall">
-        <table>
-          <thead>
-            <tr>
-              <th>On</th>
-              <th>Status</th>
-              <th>URL / pattern</th>
-              <th class="thActions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rulesBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <div id="ruleModal" class="modal" hidden>
-      <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="editRuleTitle">
-        <h3 id="editRuleTitle" class="modalTitle">Edit rule</h3>
-        <label class="field">
-          <div class="label">Match (URL or pattern)</div>
-          <input type="text" id="edUrl" class="search full" spellcheck="false" />
+    <div class="app">
+      <header class="toolbar">
+        <label class="row">
+          <input id="enabledToggle" type="checkbox" />
+          <span>Intercept HTTP for the inspected page</span>
         </label>
-        <div class="field">
-          <label class="row tight">
-            <input type="checkbox" id="edUrlIncluded" />
-            <span title="Match when the request URL contains this text as a substring (e.g. hello/world matches …/hello/world/123)."
-              >Included</span>
-          </label>
-        </div>
-        <label class="field">
-          <div class="label">Mode</div>
-          <select id="edKind" class="search full" aria-label="Rule mode">
-            <option value="response">Fake response to the app</option>
-            <option value="request">Override outgoing request (server returns real response)</option>
-          </select>
-        </label>
-        <div id="edResBlock" class="editBlock">
-          <div class="fieldRow">
-            <label class="field grow">
-              <div class="label">Response HTTP status</div>
-              <input type="number" id="edStatus" class="search" min="100" max="599" />
-            </label>
+        <div id="tabIdLine" class="muted small"></div>
+        <div id="statusLine" class="status"></div>
+      </header>
+
+      <div class="workspace" id="workspace">
+        <aside class="sidebar" id="sidebar">
+          <nav class="navTabs" role="tablist" aria-label="MockWeave views">
+            <button type="button" class="navTab active" data-view="captured" role="tab" aria-selected="true">
+              Captured
+            </button>
+            <button type="button" class="navTab" data-view="rules" role="tab" aria-selected="false">
+              Rules
+            </button>
+          </nav>
+
+          <div class="sidebarTools" id="capturedTools">
+            <input
+              type="search"
+              id="capturedFilter"
+              class="search"
+              placeholder="Filter by URL"
+              spellcheck="false"
+              aria-label="Filter captured requests by URL"
+            />
+            <button type="button" class="btn" id="clearCaptured">Clear</button>
           </div>
-          <label class="field">
-            <div class="label">Response headers (JSON object)</div>
-            <textarea id="edHeaders" class="ta" rows="4" spellcheck="false"></textarea>
-          </label>
-          <label class="field">
-            <div class="label">Response body</div>
-            <textarea id="edBody" class="ta" rows="8" spellcheck="false"></textarea>
-          </label>
-        </div>
-        <div id="edReqBlock" class="editBlock" hidden>
-          <label class="field">
-            <div class="label">Override method (empty = keep)</div>
-            <input type="text" id="edReqMethod" class="search full" spellcheck="false" />
-          </label>
-          <label class="field">
-            <div class="label">Override URL (empty = keep)</div>
-            <input type="text" id="edReqUrl" class="search full" spellcheck="false" />
-          </label>
-          <label class="field">
-            <div class="label">Request header overrides (JSON, merged on top of the live request)</div>
-            <textarea id="edReqHeaders" class="ta" rows="4" spellcheck="false"></textarea>
-          </label>
-          <label class="field">
-            <div class="label">Request body (replace; clear and save to use the browser’s original body)</div>
-            <textarea id="edReqBody" class="ta" rows="6" spellcheck="false"></textarea>
-          </label>
-        </div>
-        <div class="modalActions">
-          <button type="button" class="btn" id="edCancel">Cancel</button>
-          <button type="button" class="btn primary" id="edSave">Save</button>
-        </div>
+          <div class="sidebarTools" id="rulesTools" hidden>
+            <input
+              type="search"
+              id="rulesFilter"
+              class="search"
+              placeholder="Filter URL, status, body"
+              spellcheck="false"
+              aria-label="Filter rules"
+            />
+            <button type="button" class="btn" id="refreshRules">Refresh</button>
+          </div>
+
+          <div class="listPane" id="capturedPane">
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>URL</th>
+                  </tr>
+                </thead>
+                <tbody id="capturedBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="listPane" id="rulesPane" hidden>
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>On</th>
+                    <th>Status</th>
+                    <th>URL / pattern</th>
+                  </tr>
+                </thead>
+                <tbody id="rulesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </aside>
+
+        <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize panels"></div>
+
+        <main class="detailPane" id="detailPane">
+          <div id="detailEmpty" class="detailEmpty">
+            <h2>MockWeave</h2>
+            <p class="hint">
+              Select a captured request or rule on the left, or click <strong>Mock</strong> on a request to
+              create a rule. Edit response body and headers here with full panel height.
+            </p>
+            <ul class="hintList">
+              <li><strong>Captured</strong> — traffic while DevTools is open</li>
+              <li><strong>Rules</strong> — active mocks (same storage as the toolbar popup)</li>
+            </ul>
+          </div>
+
+          <div id="detailEditor" class="detailEditor" hidden>
+            <div class="detailHeader">
+              <h2 id="editRuleTitle">Edit rule</h2>
+              <div class="detailActions">
+                <button type="button" class="btn" id="edCancel">Close</button>
+                <button type="button" class="btn primary" id="edSave">Save</button>
+                <button type="button" class="btn danger" id="edDelete" hidden>Delete</button>
+              </div>
+            </div>
+
+            <div class="detailScroll">
+              <label class="field">
+                <div class="label">Match (URL or pattern)</div>
+                <input type="text" id="edUrl" class="search full" spellcheck="false" />
+              </label>
+              <div class="field">
+                <label class="row tight">
+                  <input type="checkbox" id="edUrlIncluded" />
+                  <span
+                    title="Match when the request URL contains this text as a substring (e.g. hello/world matches …/hello/world/123)."
+                    >Included</span
+                  >
+                </label>
+              </div>
+              <label class="field">
+                <div class="label">Mode</div>
+                <select id="edKind" class="search full" aria-label="Rule mode">
+                  <option value="response">Fake response to the app</option>
+                  <option value="request">Override outgoing request (server returns real response)</option>
+                </select>
+              </label>
+
+              <div id="edResBlock" class="editBlock">
+                <div class="fieldRow">
+                  <label class="field grow">
+                    <div class="label">Response HTTP status</div>
+                    <input type="number" id="edStatus" class="search" min="100" max="599" />
+                  </label>
+                </div>
+                <label class="field">
+                  <div class="label">Response headers (JSON object)</div>
+                  <textarea id="edHeaders" class="ta taHeaders" spellcheck="false"></textarea>
+                </label>
+                <label class="field fieldGrow">
+                  <div class="label">Response body</div>
+                  <textarea id="edBody" class="ta taBody" spellcheck="false"></textarea>
+                </label>
+              </div>
+
+              <div id="edReqBlock" class="editBlock" hidden>
+                <label class="field">
+                  <div class="label">Override method (empty = keep)</div>
+                  <input type="text" id="edReqMethod" class="search full" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <div class="label">Override URL (empty = keep)</div>
+                  <input type="text" id="edReqUrl" class="search full" spellcheck="false" />
+                </label>
+                <label class="field">
+                  <div class="label">Request header overrides (JSON, merged on top of the live request)</div>
+                  <textarea id="edReqHeaders" class="ta taHeaders" spellcheck="false"></textarea>
+                </label>
+                <label class="field fieldGrow">
+                  <div class="label">Request body (replace; clear and save to use the browser’s original body)</div>
+                  <textarea id="edReqBody" class="ta taBody" spellcheck="false"></textarea>
+                </label>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
 

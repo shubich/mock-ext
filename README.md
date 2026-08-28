@@ -22,8 +22,11 @@
 
 ## Enable
 
-1. Open the target tab (and keep **DevTools** open if you use the side panel)
-2. From the **toolbar icon** or the **MockWeave** DevTools tab, turn on **Mock … for this tab** (Chrome will ask to allow the debugger to attach to the page)
+1. Open the target page tab
+2. Open **DevTools** (F12) and select the **MockWeave** tab in the top bar — same row as **Elements**, **Console**, **Network**, **Redux**, etc. If you do not see it, click **>>** (overflow) and pin MockWeave.
+3. Turn on **Intercept HTTP for the inspected page** (Chrome will ask to allow the debugger)
+
+The toolbar popup is still available for quick rule edits; the DevTools tab uses the full panel height (split view: list on the left, editor on the right).
 
 ## Rules in the popup
 
@@ -34,8 +37,10 @@
 
 ## DevTools “MockWeave” tab
 
-- **Captured requests** — traffic while that DevTools window is open. **Filter** by URL. **Mock** creates a **response** rule and fills it from the **captured** response (body loads asynchronously; ⏳ on the status column while waiting).
-- **Active rules** — **RES** = response mock, **REQ** = request override, **INC** = substring (“included”) match; **Edit** opens a dialog with the same two modes. Inline “status” applies only to **RES** rules.
+Full-height panel (like Redux DevTools): **Captured** and **Rules** on the left, editor on the right. Drag the divider to resize.
+
+- **Captured requests** — traffic while DevTools is open. Click a row to preview; **Create mock** builds a rule from the captured response.
+- **Active rules** — **RES** = response mock, **REQ** = request override, **INC** = substring (“included”) match. Click a row to edit body/headers with the full panel height.
 
 ## URL matching
 
@@ -49,6 +54,25 @@
 
 - For **response** mocks, the extension adds CORS headers and, when the page sends a credentialed `fetch`, echoes **`Origin`** and sets **`Access-Control-Allow-Credentials`** as needed. Preflight `OPTIONS` is answered with **204** so the real (mocked) response can be read in DevTools and in the app.
 - For **request** overrides, the **real** server answers — CORS is whatever the server returns.
+
+## Network tab vs mocked responses
+
+When **Fake response** is active, mocked requests **still appear** in the DevTools **Network** panel. That is normal: the page initiated the request and DevTools logged it; MockWeave only replaces the **response body** the app receives (`Fetch.fulfillRequest`), it does not hide the row.
+
+Often the Network **Response** / **Preview** pane shows:
+
+> Failed to load response data — No data found for resource with given identifier
+
+That is a **Chrome DevTools limitation**, not a sign that the mock failed. Network stores bodies for real HTTP responses; a CDP-fulfilled mock has no such stored body, so DevTools cannot show it there.
+
+| Where to check | What you see |
+| --- | --- |
+| **Network → Response** | Often empty or the error above |
+| **Your app / UI** | Mock data (if the rule matched) |
+| **MockWeave → Captured** | Request + body when capture succeeded |
+| **MockWeave → Rules** | Whether the URL matched and the rule is enabled |
+
+For **Override outgoing request** (`REQ`) rules, traffic goes to the real server — Network shows a normal request and response.
 
 ## After changing code
 
@@ -70,7 +94,8 @@
 - **First matching** rule only.  
 - **Request** and **response** for the **same** URL: use **two** rules and **order** them (e.g. one pattern more specific) — only the first match runs. You cannot in one step both fulfill a response *and* modify the request.  
 - Invalid regex in a pattern → that rule is skipped.  
-- Very large response bodies in the panel are **truncated** when copying from capture (~1MB).
+- Very large response bodies in the panel are **truncated** when copying from capture (~1MB).  
+- **Network → Response** may be empty for **fake response** mocks (see [Network tab vs mocked responses](#network-tab-vs-mocked-responses)).
 
 ## Technical
 
