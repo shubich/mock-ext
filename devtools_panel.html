@@ -191,6 +191,25 @@
                   <button type="button" class="btn primary" id="sendBtn">Send</button>
                 </div>
               </div>
+              <details class="curlImport" id="curlImport">
+                <summary class="curlImportSummary">Import from curl</summary>
+                <label class="field">
+                  <div class="label">Paste a curl command (from DevTools → Copy as cURL)</div>
+                  <textarea
+                    id="sendCurlInput"
+                    class="ta curlTa"
+                    spellcheck="false"
+                    placeholder="curl 'https://api.example/v1/foo' -H 'Authorization: Bearer …' -H 'Accept: application/json'"
+                  ></textarea>
+                </label>
+                <div class="btnRow curlImportActions">
+                  <button type="button" class="btn sm" id="sendCurlPaste" title="Paste curl from clipboard (or press ⌘V / Ctrl+V in the box below)">
+                    Paste
+                  </button>
+                  <button type="button" class="btn sm" id="sendCurlImport">Import</button>
+                  <button type="button" class="btn sm primary" id="sendCurlImportSend">Import &amp; Send</button>
+                </div>
+              </details>
               <div class="fieldRow sendMethodRow">
                 <label class="field methodField">
                   <div class="label">Method</div>

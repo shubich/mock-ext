@@ -214,6 +214,38 @@ h2 {
   color: var(--warn);
 }
 
+.curlImport {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.curlImportSummary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  user-select: none;
+  margin-bottom: 6px;
+}
+
+.curlImport .field {
+  margin-bottom: 8px;
+}
+
+.curlTa {
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+  font-size: 10px;
+}
+
+.curlImportActions {
+  justify-content: flex-end;
+}
+
 .sidebar[hidden],
 .splitter[hidden],
 .detailPane[hidden] {

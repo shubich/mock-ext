@@ -759,6 +759,226 @@ function getSendMode() {
   return el?.value === "page" ? "page" : "direct";
 }
 
+function normalizeCurlInput(raw) {
+  return String(raw || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\\\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeCurlCommand(input) {
+  const tokens = [];
+  let i = 0;
+  while (i < input.length) {
+    while (i < input.length && /\s/.test(input[i])) i++;
+    if (i >= input.length) break;
+    const q = input[i];
+    if (q === "'" || q === '"') {
+      i++;
+      let buf = "";
+      while (i < input.length) {
+        if (q === '"' && input[i] === "\\" && i + 1 < input.length) {
+          buf += input[i + 1];
+          i += 2;
+          continue;
+        }
+        if (input[i] === q) {
+          i++;
+          break;
+        }
+        buf += input[i++];
+      }
+      tokens.push(buf);
+      continue;
+    }
+    let buf = "";
+    while (i < input.length && !/\s/.test(input[i])) buf += input[i++];
+    tokens.push(buf);
+  }
+  return tokens;
+}
+
+const CURL_NO_ARG_FLAGS = new Set([
+  "-s",
+  "-S",
+  "-i",
+  "-I",
+  "-L",
+  "-k",
+  "-v",
+  "-g",
+  "--compressed",
+  "--silent",
+  "--show-error",
+  "--fail",
+  "--location",
+  "--insecure",
+  "--verbose"
+]);
+
+/**
+ * Parse a common `curl …` one-liner into Send form fields.
+ * Supports -X, -H, -d/--data*, --json, --url, -u, -A, -b.
+ */
+function parseCurlCommand(raw) {
+  let text = normalizeCurlInput(raw);
+  if (!text) throw new Error("Paste a curl command first");
+  if (!/^curl\b/i.test(text)) throw new Error('Command must start with "curl"');
+  text = text.replace(/^curl\s+/i, "");
+  const tokens = tokenizeCurlCommand(text);
+  let method = null;
+  let url = "";
+  const headers = {};
+  let body = null;
+  let bodyFromData = false;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const tl = t.toLowerCase();
+    if (t.startsWith("http://") || t.startsWith("https://")) {
+      url = t;
+      continue;
+    }
+    if (CURL_NO_ARG_FLAGS.has(tl)) continue;
+    if (tl === "-x" || tl === "--request") {
+      method = (tokens[++i] || "GET").toUpperCase();
+      continue;
+    }
+    if (tl === "-h" || tl === "--header") {
+      const h = tokens[++i] || "";
+      const colon = h.indexOf(":");
+      if (colon >= 0) {
+        headers[h.slice(0, colon).trim()] = h.slice(colon + 1).trim();
+      }
+      continue;
+    }
+    if (
+      tl === "-d" ||
+      tl === "--data" ||
+      tl === "--data-raw" ||
+      tl === "--data-binary" ||
+      tl === "--data-urlencode" ||
+      tl === "--json"
+    ) {
+      const val = tokens[++i] ?? "";
+      if (val.startsWith("@")) {
+        throw new Error("curl file references (@file) are not supported — paste the body directly");
+      }
+      body = val;
+      bodyFromData = true;
+      if (!method) method = "POST";
+      continue;
+    }
+    if (tl === "--url") {
+      url = tokens[++i] || "";
+      continue;
+    }
+    if (tl === "-u" || tl === "--user") {
+      const cred = tokens[++i] || "";
+      const bytes = new TextEncoder().encode(cred);
+      let bin = "";
+      for (const b of bytes) bin += String.fromCharCode(b);
+      headers.Authorization = "Basic " + btoa(bin);
+      continue;
+    }
+    if (tl === "-a" || tl === "--user-agent") {
+      headers["User-Agent"] = tokens[++i] || "";
+      continue;
+    }
+    if (tl === "-b" || tl === "--cookie") {
+      headers.Cookie = tokens[++i] || "";
+      continue;
+    }
+    if (tl.startsWith("-")) {
+      if (i + 1 < tokens.length && !tokens[i + 1].startsWith("-")) i++;
+      continue;
+    }
+  }
+
+  if (!url) throw new Error("Could not find URL in curl command");
+  if (!method) method = bodyFromData ? "POST" : "GET";
+  return { method, url, headers, body: body != null ? body : "" };
+}
+
+function applyParsedCurl(parsed) {
+  activeSavedRequestId = null;
+  fillSendForm({
+    method: parsed.method,
+    url: parsed.url,
+    headers: parsed.headers,
+    body: parsed.body,
+    sendMode: getSendMode(),
+    savedId: null
+  });
+  clearSendResponse();
+}
+
+async function importCurlFromText(text, andSend = false) {
+  const parsed = parseCurlCommand(text);
+  applyParsedCurl(parsed);
+  setStatus(andSend ? "Imported curl — sending…" : "Imported curl into form", "ok");
+  if (andSend) await executeSend();
+}
+
+function readClipboardViaInspectedPage() {
+  return new Promise((resolve) => {
+    if (inspectedTabId == null) {
+      resolve(null);
+      return;
+    }
+    const expr = `(async function(){
+      try {
+        var t = await navigator.clipboard.readText();
+        return { ok: true, text: t };
+      } catch (e) {
+        return { ok: false };
+      }
+    })()`;
+    chrome.devtools.inspectedWindow.eval(expr, (result, exceptionInfo) => {
+      if (exceptionInfo && exceptionInfo.isException) {
+        resolve(null);
+        return;
+      }
+      if (result && result.ok && typeof result.text === "string") {
+        resolve(result.text);
+        return;
+      }
+      resolve(null);
+    });
+  });
+}
+
+async function pasteCurlClipboard() {
+  const ta = document.getElementById("sendCurlInput");
+  if (!ta) return;
+  ta.focus();
+
+  const before = ta.value;
+  try {
+    if (document.queryCommandSupported?.("paste")) {
+      document.execCommand("paste");
+      if (ta.value !== before && ta.value.trim()) {
+        setStatus("Pasted from clipboard", "ok");
+        return;
+      }
+    }
+  } catch {
+    /* execCommand paste blocked in some builds */
+  }
+
+  const fromPage = await readClipboardViaInspectedPage();
+  if (fromPage != null && fromPage.trim()) {
+    ta.value = fromPage;
+    setStatus("Pasted from clipboard (via inspected page)", "ok");
+    return;
+  }
+
+  ta.select();
+  setStatus("DevTools cannot read clipboard — press ⌘V / Ctrl+V here", "muted");
+}
+
 function clearSendResponse() {
   lastSendResult = null;
   const meta = document.getElementById("sendMeta");
@@ -1116,6 +1336,26 @@ function wireSend() {
   document.getElementById("sendSaveAsBtn")?.addEventListener("click", () => void saveCurrentRequest(true));
   document.getElementById("sendDeleteSavedBtn")?.addEventListener("click", () => void deleteActiveSavedRequest());
   document.getElementById("sendSavedNew")?.addEventListener("click", () => newSendForm());
+  document.getElementById("sendCurlPaste")?.addEventListener("click", () => void pasteCurlClipboard());
+  document.getElementById("sendCurlInput")?.addEventListener("paste", () => {
+    setStatus("Pasted — click Import or Import & Send", "ok");
+  });
+  document.getElementById("sendCurlImport")?.addEventListener("click", () => {
+    const text = document.getElementById("sendCurlInput")?.value || "";
+    try {
+      void importCurlFromText(text, false);
+    } catch (e) {
+      setStatus(e?.message || String(e), "warn");
+    }
+  });
+  document.getElementById("sendCurlImportSend")?.addEventListener("click", () => {
+    const text = document.getElementById("sendCurlInput")?.value || "";
+    try {
+      void importCurlFromText(text, true);
+    } catch (e) {
+      setStatus(e?.message || String(e), "warn");
+    }
+  });
   document.getElementById("edReplaySend")?.addEventListener("click", () => {
     if (replayCaptureItem) fillSendFromCapture(replayCaptureItem);
   });

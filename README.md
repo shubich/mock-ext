@@ -46,6 +46,7 @@ Full-height panel (like Redux DevTools): **Captured**, **Rules**, and **Send** (
   - **Via page** — `fetch` in the inspected tab (mocks and cookies apply; enable intercept first).
   - **Create mock from response** after a successful send.
   - **Saved requests** — sidebar on Send; **Save** / **Save as…** / **Delete**; stored in `chrome.storage.local` (JWT in headers is saved with the request).
+  - **Import from curl** — paste **Copy as cURL** from Network; **Import** or **Import & Send** (`-H`, `-d`, `--json`, `-X`, `-u`, cookies).
 
 ## URL matching
 
