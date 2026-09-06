@@ -676,6 +676,10 @@ tr:last-child td {
   display: none !important;
 }
 
+.urlCellInvalid {
+  color: var(--warn);
+}
+
 .mockBadge {
   display: inline-block;
   font-size: 10px;

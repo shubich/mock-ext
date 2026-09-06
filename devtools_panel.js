@@ -730,6 +730,8 @@ function renderRulesTable() {
     tr.setAttribute("data-id", r.id);
     if (selectedRuleId === r.id) tr.classList.add("selected");
     const short = (r.urlRegex || "").length > 100 ? (r.urlRegex || "").slice(0, 100) + "…" : r.urlRegex || "";
+    const invalidError = getRuleMatcherValidationError(r);
+    const urlTitle = invalidError ? `⚠ ${invalidError}` : r.urlRegex || "";
     const statusCell = isReq
       ? `<td class="muted" title="${escapeAttr(t("statusNotUsedReqMode"))}">${t("statusNotUsed")}</td>`
       : `<td><input class="statusField statusIn" data-id="${escapeAttr(
@@ -744,7 +746,7 @@ function renderRulesTable() {
       </td>
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
-      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || t("urlEmpty"))}</td>
+      <td class="urlCell${invalidError ? " urlCellInvalid" : ""}" title="${escapeAttr(urlTitle)}">${kindTag}${incTag}${escapeHtml(short || t("urlEmpty"))}</td>
     `;
     tr.addEventListener("click", (e) => {
       if (e.target.closest("input")) return;
@@ -1622,6 +1624,37 @@ function wireSplitter() {
   });
 }
 
+function parseUrlMatcherInput(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return { mode: "none", source: "" };
+  if (raw.startsWith("re:")) return { mode: "regex", source: raw.slice(3).trim() };
+  if (raw.startsWith("lit:")) return { mode: "literal", source: raw.slice(4).trim() };
+  if (/^https?:\/\//i.test(raw)) return { mode: "literal", source: raw };
+  return { mode: "regex", source: raw };
+}
+
+function escapeRegExpForMatcher(literal) {
+  return String(literal).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getRuleMatcherValidationError(rule) {
+  if (!rule || !rule.enabled) return null;
+  const urlRegex = String(rule.urlRegex || "").trim();
+  if (!urlRegex) return t("errEnabledNoUrl");
+  if (rule.urlIncluded) return null;
+  const matcher = parseUrlMatcherInput(urlRegex);
+  if (matcher.mode === "none" || !matcher.source) return t("errEnabledNoMatcher");
+  const pattern =
+    matcher.mode === "literal" ? `^${escapeRegExpForMatcher(matcher.source)}$` : matcher.source;
+  try {
+    // eslint-disable-next-line no-new
+    new RegExp(pattern);
+  } catch (e) {
+    return t("errInvalidRegex", { detail: e?.message || String(e) });
+  }
+  return null;
+}
+
 async function buildRulePayloadFromEditor() {
   const edUrl = document.getElementById("edUrl");
   const edKind = document.getElementById("edKind");
@@ -1686,6 +1719,11 @@ async function buildRulePayloadFromEditor() {
   };
   if (rawBody.trim() !== "" || hadBody) {
     out.requestBody = rawBody.trim() === "" ? null : rawBody;
+  }
+  const validationError = getRuleMatcherValidationError(out);
+  if (validationError) {
+    setStatus(validationError, "warn");
+    return null;
   }
   return out;
 }
@@ -1771,6 +1809,16 @@ async function saveCurrentRule() {
     if (rawBody.trim() !== "" || hadBody) {
       payload.requestBody = rawBody.trim() === "" ? null : rawBody;
     }
+  }
+  const prevRule = findRuleById(editingRuleId);
+  const validationError = getRuleMatcherValidationError({
+    enabled: prevRule?.enabled !== false,
+    urlRegex: payload.urlRegex,
+    urlIncluded: payload.urlIncluded
+  });
+  if (validationError) {
+    setStatus(validationError, "warn");
+    return;
   }
   const res = await sendToBg(payload);
   if (res?.ok) {
