@@ -27,6 +27,7 @@ function onLocaleChanged() {
   }
   const hint = document.getElementById("rulesOrderHint");
   if (hint) hint.textContent = t("rulesOrderHint");
+  syncRulesOrderUi();
   if (!lastSendResult) clearSendResponse();
   void renderAll();
 }
@@ -104,6 +105,32 @@ let lastSendResult = null;
 let replayCaptureItem = null;
 let savedRequestsCache = [];
 let activeSavedRequestId = null;
+let showRuleOrder = false;
+
+function rulesTableColspan() {
+  return showRuleOrder ? 4 : 3;
+}
+
+function syncRulesOrderUi() {
+  const table = document.getElementById("rulesTable");
+  if (table) table.classList.toggle("rulesTable--order", showRuleOrder);
+  const th = document.getElementById("rulesOrderTh");
+  if (th) th.hidden = !showRuleOrder;
+  const hint = document.getElementById("rulesOrderHint");
+  if (hint) hint.hidden = activeView !== "rules" || !showRuleOrder;
+  const toggle = document.getElementById("showRuleOrderToggle");
+  if (toggle) toggle.checked = showRuleOrder;
+}
+
+async function loadUiPrefs() {
+  try {
+    const stored = await chrome.storage.local.get("showRuleOrder");
+    showRuleOrder = stored.showRuleOrder === true;
+  } catch {
+    showRuleOrder = false;
+  }
+  syncRulesOrderUi();
+}
 
 function sendToBg(msg) {
   return new Promise((resolve) => {
@@ -374,7 +401,7 @@ function setActiveView(view) {
   if (capTools) capTools.hidden = activeView !== "captured";
   if (rulesTools) rulesTools.hidden = activeView !== "rules";
   const rulesOrderHint = document.getElementById("rulesOrderHint");
-  if (rulesOrderHint) rulesOrderHint.hidden = activeView !== "rules";
+  if (rulesOrderHint) rulesOrderHint.hidden = activeView !== "rules" || !showRuleOrder;
   if (sidebar) sidebar.hidden = isSend;
   if (splitter) splitter.hidden = isSend;
   if (detailPane) detailPane.hidden = isSend;
@@ -705,11 +732,11 @@ function renderRulesTable() {
   if (!body) return;
   const list = getFilteredRules();
   if (!rulesCache.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">${t("rulesEmpty")}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="${rulesTableColspan()}" class="muted">${t("rulesEmpty")}</td></tr>`;
     return;
   }
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="4" class="muted">${t("rulesNoFilter")}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="${rulesTableColspan()}" class="muted">${t("rulesNoFilter")}</td></tr>`;
     return;
   }
   body.innerHTML = "";
@@ -739,11 +766,14 @@ function renderRulesTable() {
         )}" type="number" min="100" max="599" value="${Number(
         r.status
       ) || 200}" title="${escapeAttr(t("statusClickApply"))}" aria-label="${escapeAttr(t("statusAriaHttp"))}" /></td>`;
-    tr.innerHTML = `
-      <td class="orderCell">
+    const orderCell = showRuleOrder
+      ? `<td class="orderCell">
         <button type="button" class="btn sm ruleUp" data-id="${escapeAttr(r.id)}" title="${escapeAttr(t("ruleMoveUp"))}" ${isFirst ? "disabled" : ""}>↑</button>
         <button type="button" class="btn sm ruleDown" data-id="${escapeAttr(r.id)}" title="${escapeAttr(t("ruleMoveDown"))}" ${isLast ? "disabled" : ""}>↓</button>
-      </td>
+      </td>`
+      : "";
+    tr.innerHTML = `
+      ${orderCell}
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
       <td class="urlCell${invalidError ? " urlCellInvalid" : ""}" title="${escapeAttr(urlTitle)}">${kindTag}${incTag}${escapeHtml(short || t("urlEmpty"))}</td>
@@ -1912,6 +1942,7 @@ async function main() {
   await MockWeaveI18n.init();
   MockWeaveI18n.apply(document);
   MockWeaveI18n.wireLangSwitch(document);
+  await loadUiPrefs();
   window.addEventListener("mockweave-locale-change", onLocaleChanged);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.locale) {
@@ -1919,6 +1950,11 @@ async function main() {
     }
     if (area === "local" && changes.theme) {
       void MockWeaveTheme.init();
+    }
+    if (area === "local" && changes.showRuleOrder) {
+      showRuleOrder = changes.showRuleOrder.newValue === true;
+      syncRulesOrderUi();
+      renderRulesTable();
     }
   });
 
@@ -1965,6 +2001,17 @@ async function main() {
       cf.value = "";
     }
     renderCapturedTable();
+  });
+
+  document.getElementById("showRuleOrderToggle")?.addEventListener("change", async (e) => {
+    showRuleOrder = !!e.target.checked;
+    try {
+      await chrome.storage.local.set({ showRuleOrder });
+    } catch {
+      /* ignore */
+    }
+    syncRulesOrderUi();
+    renderRulesTable();
   });
 
   document.getElementById("refreshRules")?.addEventListener("click", async () => {

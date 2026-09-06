@@ -574,6 +574,23 @@ h2 {
   background: var(--dangerBgHover);
 }
 
+.rulesOrderToggle {
+  font-size: 11px;
+  color: var(--muted);
+  user-select: none;
+  margin-right: 2px;
+}
+
+.rulesTable .orderCol,
+.rulesTable .orderCell {
+  display: none;
+}
+
+.rulesTable.rulesTable--order .orderCol,
+.rulesTable.rulesTable--order .orderCell {
+  display: table-cell;
+}
+
 .orderCol {
   width: 3.2rem;
   white-space: nowrap;

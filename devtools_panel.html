@@ -62,6 +62,10 @@
               aria-label="Filter rules"
             />
             <div class="sidebarToolActions">
+              <label class="row tight rulesOrderToggle">
+                <input type="checkbox" id="showRuleOrderToggle" />
+                <span data-i18n="showRuleOrder" data-i18n-title="showRuleOrderTitle" title="Show ↑↓ column to change rule priority">Rule order</span>
+              </label>
               <button type="button" class="btn" id="exportRulesBtn" data-i18n="exportRules" data-i18n-title="exportRulesTitle" title="Export rules to JSON">Export</button>
               <button type="button" class="btn" id="importRulesBtn" data-i18n="importRules" data-i18n-title="importRulesTitle" title="Import rules from JSON">Import</button>
               <input type="file" id="importRulesFile" accept="application/json,.json" hidden />
@@ -89,10 +93,10 @@
           </div>
           <div class="listPane" id="rulesPane" hidden>
             <div class="tableWrap">
-              <table>
+              <table class="rulesTable" id="rulesTable">
                 <thead>
                   <tr>
-                    <th class="orderCol" data-i18n="thOrder">Order</th>
+                    <th class="orderCol" id="rulesOrderTh" data-i18n="thOrder" hidden>Order</th>
                     <th data-i18n="thOn">On</th>
                     <th data-i18n="thStatus">Status</th>
                     <th data-i18n="thUrlPattern">URL / pattern</th>
