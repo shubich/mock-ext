@@ -22,6 +22,8 @@
       filterRules: "Filter URL, status, body",
       clear: "Clear",
       refresh: "Refresh",
+      exportRules: "Export",
+      importRules: "Import",
       addRule: "Add rule",
       thMethod: "Method",
       thStatus: "Status",
@@ -201,7 +203,11 @@
       deleteSavedDefault: "this request",
       resBodyCaptureTitle: "Response body capture",
       errPageEvalFailed: "Page eval failed",
-      errPageEmptyResult: "Empty result from page"
+      errPageEmptyResult: "Empty result from page",
+      statusRulesExported: "Rules exported",
+      statusRulesImported: "Imported {count} rule(s)",
+      statusRulesImportFailed: "Import failed",
+      confirmImportReplace: "Replace all existing rules with the imported file? (Cancel = merge by id)",
     },
     ru: {
       langEn: "EN",
@@ -220,6 +226,8 @@
       filterRules: "Фильтр: URL, статус, body",
       clear: "Очистить",
       refresh: "Обновить",
+      exportRules: "Экспорт",
+      importRules: "Импорт",
       addRule: "Добавить правило",
       thMethod: "Метод",
       thStatus: "Статус",
@@ -399,7 +407,11 @@
       deleteSavedDefault: "этот запрос",
       resBodyCaptureTitle: "Захват body ответа",
       errPageEvalFailed: "Ошибка eval на странице",
-      errPageEmptyResult: "Пустой результат со страницы"
+      errPageEmptyResult: "Пустой результат со страницы",
+      statusRulesExported: "Правила экспортированы",
+      statusRulesImported: "Импортировано правил: {count}",
+      statusRulesImportFailed: "Ошибка импорта",
+      confirmImportReplace: "Заменить все правила импортом? (Отмена = объединить по id)",
     }
   };
 

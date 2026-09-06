@@ -1476,6 +1476,63 @@ function seedFromHar() {
   }
 }
 
+async function exportRulesToFile() {
+  const res = await sendToBg({ type: "EXPORT_RULES" });
+  if (!res?.ok || !res.document) {
+    setStatus(res?.error || t("statusRulesImportFailed"), "warn");
+    return;
+  }
+  const blob = new Blob([JSON.stringify(res.document, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `mockweave-rules-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus(t("statusRulesExported"), "ok");
+}
+
+async function importRulesFromFile(file) {
+  if (!file) return;
+  let parsed;
+  try {
+    const text = await file.text();
+    parsed = JSON.parse(text);
+  } catch (e) {
+    setStatus(e?.message || t("statusRulesImportFailed"), "warn");
+    return;
+  }
+  const rules = Array.isArray(parsed) ? parsed : parsed?.rules;
+  if (!Array.isArray(rules)) {
+    setStatus(t("statusRulesImportFailed"), "warn");
+    return;
+  }
+  const replace = window.confirm(t("confirmImportReplace"));
+  const res = await sendToBg({
+    type: "IMPORT_RULES",
+    rules,
+    mode: replace ? "replace" : "merge"
+  });
+  if (res?.ok) {
+    rulesCache = res.rules || rulesCache;
+    setStatus(t("statusRulesImported", { count: res.count ?? rules.length }), "ok");
+    await renderAll();
+  } else {
+    setStatus(res?.error || t("statusRulesImportFailed"), "warn");
+  }
+}
+
+function wireRulesImportExport() {
+  document.getElementById("exportRulesBtn")?.addEventListener("click", () => void exportRulesToFile());
+  const fileInput = document.getElementById("importRulesFile");
+  document.getElementById("importRulesBtn")?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    if (file) void importRulesFromFile(file);
+  });
+}
+
 function wireFilterInputs() {
   const cf = document.getElementById("capturedFilter");
   const rf = document.getElementById("rulesFilter");
@@ -1758,6 +1815,7 @@ async function main() {
   });
 
   wireFilterInputs();
+  wireRulesImportExport();
   wireNavTabs();
   wireSplitter();
   wireDetailEditor();

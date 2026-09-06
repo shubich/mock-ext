@@ -1,5 +1,12 @@
 const DEBUGGER_PROTOCOL_VERSION = "1.3";
 
+import {
+  buildRulesExportDocument,
+  mergeRulesById,
+  normalizeRulesList,
+  parseRulesImportJson
+} from "./lib/rules-io.js";
+
 const STORAGE_KEYS = {
   rules: "rules",
   enabledTabIds: "enabledTabIds",
@@ -424,9 +431,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (type === "UPSERT_RULES") {
-      const rules = Array.isArray(msg.rules) ? msg.rules : [];
+      const rules = normalizeRulesList(Array.isArray(msg.rules) ? msg.rules : []);
       await setInStorage({ [STORAGE_KEYS.rules]: rules });
-      return sendResponse({ ok: true });
+      return sendResponse({ ok: true, rules });
+    }
+
+    if (type === "IMPORT_RULES") {
+      try {
+        const imported = normalizeRulesList(Array.isArray(msg.rules) ? msg.rules : []);
+        const mode = msg.mode === "merge" ? "merge" : "replace";
+        const next =
+          mode === "merge" ? mergeRulesById(await getRules(), imported) : imported;
+        await setInStorage({ [STORAGE_KEYS.rules]: next });
+        return sendResponse({ ok: true, rules: next, count: imported.length });
+      } catch (e) {
+        return sendResponse({ ok: false, error: e?.message || String(e) });
+      }
+    }
+
+    if (type === "EXPORT_RULES") {
+      const rules = await getRules();
+      return sendResponse({ ok: true, document: buildRulesExportDocument(rules) });
     }
 
     if (type === "FIND_MATCHING_RULE") {
