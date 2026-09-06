@@ -24,6 +24,6 @@
     "service_worker": "service_worker.js",
     "type": "module"
   },
-  "permissions": ["storage", "debugger", "tabs"],
+  "permissions": ["storage", "debugger", "tabs", "downloads"],
   "host_permissions": ["<all_urls>"]
 }

@@ -1519,14 +1519,22 @@ async function exportRulesToFile() {
     setStatus(res?.error || t("statusRulesImportFailed"), "warn");
     return;
   }
-  const blob = new Blob([JSON.stringify(res.document, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `mockweave-rules-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  setStatus(t("statusRulesExported"), "ok");
+  const json = JSON.stringify(res.document, null, 2);
+  const filename = `mockweave-rules-${new Date().toISOString().slice(0, 10)}.json`;
+  try {
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    await chrome.downloads.download({ url, filename, saveAs: true });
+    URL.revokeObjectURL(url);
+    setStatus(t("statusRulesExported"), "ok");
+  } catch {
+    try {
+      await navigator.clipboard.writeText(json);
+      setStatus(t("statusRulesExportedClipboard"), "ok");
+    } catch (e) {
+      setStatus(e?.message || t("statusRulesImportFailed"), "warn");
+    }
+  }
 }
 
 async function importRulesFromFile(file) {

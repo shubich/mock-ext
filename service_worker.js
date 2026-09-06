@@ -1,12 +1,11 @@
-const DEBUGGER_PROTOCOL_VERSION = "1.3";
-
 import {
   buildRulesExportDocument,
   mergeRulesById,
-  normalizeRulesList,
-  parseRulesImportJson
+  normalizeRulesList
 } from "./lib/rules-io.js";
 import { matchRule } from "./lib/matching.js";
+
+const DEBUGGER_PROTOCOL_VERSION = "1.3";
 
 const STORAGE_KEYS = {
   rules: "rules",
