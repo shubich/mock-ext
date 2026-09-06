@@ -67,6 +67,9 @@
             <button type="button" class="btn primary" id="addRuleBtn" data-i18n="addRule">Add rule</button>
             <button type="button" class="btn" id="refreshRules" data-i18n="refresh">Refresh</button>
           </div>
+          <p class="rulesOrderHint muted small" id="rulesOrderHint" data-i18n="rulesOrderHint" hidden>
+            First matching rule wins — use ↑↓ to change priority.
+          </p>
 
           <div class="listPane" id="capturedPane">
             <div class="tableWrap">
@@ -87,6 +90,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th class="orderCol" data-i18n="thOrder">Order</th>
                     <th data-i18n="thOn">On</th>
                     <th data-i18n="thStatus">Status</th>
                     <th data-i18n="thUrlPattern">URL / pattern</th>
@@ -119,6 +123,7 @@
               <h2 id="editRuleTitle" data-i18n="editRule">Edit rule</h2>
               <div class="detailActions">
                 <button type="button" class="btn" id="edReplaySend" hidden data-i18n="replayInSend">Replay in Send</button>
+                <button type="button" class="btn" id="edDuplicate" hidden data-i18n="duplicateRule">Duplicate</button>
                 <button type="button" class="btn" id="edCancel" data-i18n="close">Close</button>
                 <button type="button" class="btn primary" id="edSave" data-i18n="save">Save</button>
                 <button type="button" class="btn danger" id="edDelete" hidden data-i18n="delete">Delete</button>

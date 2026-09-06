@@ -555,6 +555,25 @@ h2 {
   background: var(--dangerBgHover);
 }
 
+.orderCol {
+  width: 3.2rem;
+  white-space: nowrap;
+}
+
+.orderCell {
+  white-space: nowrap;
+}
+
+.orderCell .btn {
+  min-width: 1.4rem;
+  padding: 2px 4px;
+}
+
+.rulesOrderHint {
+  margin: 0;
+  padding: 0 10px 6px;
+}
+
 .tableWrap {
   flex: 1 1 auto;
   overflow: auto;

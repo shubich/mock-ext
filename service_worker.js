@@ -522,6 +522,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return sendResponse({ ok: true, rules: next });
     }
 
+    if (type === "REORDER_RULE") {
+      const id = String(msg.id || "");
+      const direction = msg.direction === "up" ? "up" : "down";
+      const rules = await getRules();
+      const idx = rules.findIndex((r) => r && r.id === id);
+      if (idx < 0) return sendResponse({ ok: false, error: "Rule not found" });
+      const newIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= rules.length) {
+        return sendResponse({ ok: true, rules });
+      }
+      const [item] = rules.splice(idx, 1);
+      rules.splice(newIdx, 0, item);
+      await setInStorage({ [STORAGE_KEYS.rules]: rules });
+      return sendResponse({ ok: true, rules });
+    }
+
+    if (type === "DUPLICATE_RULE") {
+      const id = String(msg.id || "");
+      const rules = await getRules();
+      const idx = rules.findIndex((r) => r && r.id === id);
+      if (idx < 0) return sendResponse({ ok: false, error: "Rule not found" });
+      const src = rules[idx];
+      const copy = normalizeRulesList([{ ...src, id: undefined }])[0];
+      rules.splice(idx + 1, 0, copy);
+      await setInStorage({ [STORAGE_KEYS.rules]: rules });
+      return sendResponse({ ok: true, rules, rule: copy });
+    }
+
     if (type === "PATCH_RULE") {
       const {
         id,

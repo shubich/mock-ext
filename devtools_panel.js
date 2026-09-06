@@ -25,6 +25,8 @@ function onLocaleChanged() {
     if (title) title.textContent = t("editRule");
     if (save) save.textContent = t("save");
   }
+  const hint = document.getElementById("rulesOrderHint");
+  if (hint) hint.textContent = t("rulesOrderHint");
   if (!lastSendResult) clearSendResponse();
   void renderAll();
 }
@@ -371,6 +373,8 @@ function setActiveView(view) {
   if (rulesPane) rulesPane.hidden = activeView !== "rules";
   if (capTools) capTools.hidden = activeView !== "captured";
   if (rulesTools) rulesTools.hidden = activeView !== "rules";
+  const rulesOrderHint = document.getElementById("rulesOrderHint");
+  if (rulesOrderHint) rulesOrderHint.hidden = activeView !== "rules";
   if (sidebar) sidebar.hidden = isSend;
   if (splitter) splitter.hidden = isSend;
   if (detailPane) detailPane.hidden = isSend;
@@ -409,6 +413,8 @@ function showCapturePreview(item) {
   if (delBtn) delBtn.hidden = true;
   if (saveBtn) saveBtn.hidden = true;
   if (cancelBtn) cancelBtn.textContent = t("close");
+  const dupBtn = document.getElementById("edDuplicate");
+  if (dupBtn) dupBtn.hidden = true;
 
   const rule = matchByUrl.get(item.url) || null;
   title.textContent = rule ? t("capturedRequestMocked") : t("capturedRequest");
@@ -589,6 +595,8 @@ function openRuleEditor(rule, opts = {}) {
   const replayBtn = document.getElementById("edReplaySend");
   if (replayBtn) replayBtn.hidden = true;
   replayCaptureItem = null;
+  const dupBtn = document.getElementById("edDuplicate");
+  if (dupBtn) dupBtn.hidden = false;
 
   const full = findRuleById(rule.id) || rule;
   const kind = full.mockKind === "request" ? "request" : "response";
@@ -658,6 +666,8 @@ function openNewRuleEditor() {
     saveBtn.disabled = false;
   }
   if (replayBtn) replayBtn.hidden = true;
+  const dupBtn = document.getElementById("edDuplicate");
+  if (dupBtn) dupBtn.hidden = true;
 
   edKind.value = "response";
   edUrl.value = "";
@@ -695,16 +705,20 @@ function renderRulesTable() {
   if (!body) return;
   const list = getFilteredRules();
   if (!rulesCache.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">${t("rulesEmpty")}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="4" class="muted">${t("rulesEmpty")}</td></tr>`;
     return;
   }
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">${t("rulesNoFilter")}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="4" class="muted">${t("rulesNoFilter")}</td></tr>`;
     return;
   }
   body.innerHTML = "";
-  for (const r of list) {
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
     if (!r) continue;
+    const fullIndex = rulesCache.findIndex((x) => x && x.id === r.id);
+    const isFirst = fullIndex <= 0;
+    const isLast = fullIndex < 0 || fullIndex >= rulesCache.length - 1;
     const isReq = r.mockKind === "request";
     const kindTag = isReq
       ? `<span class="tag kindReq" title="${escapeAttr(t("tagReqTitle"))}">REQ</span> `
@@ -724,6 +738,10 @@ function renderRulesTable() {
         r.status
       ) || 200}" title="${escapeAttr(t("statusClickApply"))}" aria-label="${escapeAttr(t("statusAriaHttp"))}" /></td>`;
     tr.innerHTML = `
+      <td class="orderCell">
+        <button type="button" class="btn sm ruleUp" data-id="${escapeAttr(r.id)}" title="${escapeAttr(t("ruleMoveUp"))}" ${isFirst ? "disabled" : ""}>↑</button>
+        <button type="button" class="btn sm ruleDown" data-id="${escapeAttr(r.id)}" title="${escapeAttr(t("ruleMoveDown"))}" ${isLast ? "disabled" : ""}>↓</button>
+      </td>
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
       <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || t("urlEmpty"))}</td>
@@ -769,6 +787,23 @@ function renderRulesTable() {
       }
     };
     inp.addEventListener("change", apply);
+  }
+  for (const btn of body.querySelectorAll("button.ruleUp, button.ruleDown")) {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-id");
+      const direction = btn.classList.contains("ruleUp") ? "up" : "down";
+      const res = await sendToBg({ type: "REORDER_RULE", id, direction });
+      if (res?.ok) {
+        rulesCache = res.rules || rulesCache;
+        setStatus(t("statusRuleMoved"), "ok");
+        await refreshMatchMap();
+        renderRulesTable();
+        renderCapturedTable();
+      } else {
+        setStatus(res?.error || t("statusPatchFailed"), "warn");
+      }
+    });
   }
 }
 
@@ -1751,13 +1786,30 @@ async function saveCurrentRule() {
   }
 }
 
+async function duplicateCurrentRule() {
+  if (!editingRuleId) return;
+  const res = await sendToBg({ type: "DUPLICATE_RULE", id: editingRuleId });
+  if (res?.ok) {
+    rulesCache = res.rules || rulesCache;
+    setStatus(t("statusRuleDuplicated"), "ok");
+    await refreshMatchMap();
+    renderRulesTable();
+    renderCapturedTable();
+    if (res.rule) openRuleEditor(res.rule, { keepSelection: true });
+  } else {
+    setStatus(res?.error || t("statusCreateFailed"), "warn");
+  }
+}
+
 function wireDetailEditor() {
   const cancel = document.getElementById("edCancel");
   const save = document.getElementById("edSave");
   const del = document.getElementById("edDelete");
+  const dup = document.getElementById("edDuplicate");
   const edKind = document.getElementById("edKind");
   edKind?.addEventListener("change", () => syncEdModalMode());
   cancel?.addEventListener("click", () => closeRuleEditor());
+  dup?.addEventListener("click", () => void duplicateCurrentRule());
   save?.addEventListener("click", async () => {
     if (isCreatingNewRule) {
       await createRuleFromEditor();
