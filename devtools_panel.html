@@ -51,21 +51,23 @@
             />
             <button type="button" class="btn" id="clearCaptured" data-i18n="clear">Clear</button>
           </div>
-          <div class="sidebarTools" id="rulesTools" hidden>
+          <div class="sidebarTools sidebarTools--rules" id="rulesTools" hidden>
             <input
               type="search"
               id="rulesFilter"
-              class="search"
+              class="search searchToolbar"
               data-i18n-placeholder="filterRules"
               placeholder="Filter URL, status, body"
               spellcheck="false"
               aria-label="Filter rules"
             />
-            <button type="button" class="btn" id="exportRulesBtn" data-i18n="exportRules">Export</button>
-            <button type="button" class="btn" id="importRulesBtn" data-i18n="importRules">Import</button>
-            <input type="file" id="importRulesFile" accept="application/json,.json" hidden />
-            <button type="button" class="btn primary" id="addRuleBtn" data-i18n="addRule">Add rule</button>
-            <button type="button" class="btn" id="refreshRules" data-i18n="refresh">Refresh</button>
+            <div class="sidebarToolActions">
+              <button type="button" class="btn" id="exportRulesBtn" data-i18n="exportRules" data-i18n-title="exportRulesTitle" title="Export rules to JSON">Export</button>
+              <button type="button" class="btn" id="importRulesBtn" data-i18n="importRules" data-i18n-title="importRulesTitle" title="Import rules from JSON">Import</button>
+              <input type="file" id="importRulesFile" accept="application/json,.json" hidden />
+              <button type="button" class="btn primary" id="addRuleBtn" data-i18n="addRule">Add rule</button>
+              <button type="button" class="btn" id="refreshRules" data-i18n="refresh">Refresh</button>
+            </div>
           </div>
           <p class="rulesOrderHint muted small" id="rulesOrderHint" data-i18n="rulesOrderHint" hidden>
             First matching rule wins — use ↑↓ to change priority.
@@ -122,7 +124,7 @@
             <div class="detailHeader">
               <h2 id="editRuleTitle" data-i18n="editRule">Edit rule</h2>
               <div class="detailActions">
-                <button type="button" class="btn" id="edReplaySend" hidden data-i18n="replayInSend">Replay in Send</button>
+                <button type="button" class="btn" id="edReplaySend" hidden data-i18n="replayInSend" data-i18n-title="replayInSendTitle" title="Copy this captured request to the Send tab">Open in Send</button>
                 <button type="button" class="btn" id="edDuplicate" hidden data-i18n="duplicateRule">Duplicate</button>
                 <button type="button" class="btn" id="edCancel" data-i18n="close">Close</button>
                 <button type="button" class="btn primary" id="edSave" data-i18n="save">Save</button>
