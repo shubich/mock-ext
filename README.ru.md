@@ -109,6 +109,10 @@ Popup в toolbar по-прежнему доступен для быстрых п
 - Очень большие body в панели **обрезаются** при захвате (~1 MB).  
 - **Network → Response** может быть пустым для **fake response** (см. [Network vs подменённые ответы](#network-vs-подменённые-ответы)).
 
+## Roadmap
+
+Планы, известные пробелы и то, что сознательно не делаем: **[ROADMAP.ru.md](ROADMAP.ru.md)** ([English](ROADMAP.md)).
+
 ## Технически
 
 - `Fetch.enable` на `*`, `Fetch.requestPaused` → `fulfillRequest` (response) или `continueRequest` (request)  

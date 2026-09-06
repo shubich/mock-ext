@@ -105,6 +105,10 @@ For **Override outgoing request** (`REQ`) rules, traffic goes to the real server
 - Very large response bodies in the panel are **truncated** when copying from capture (~1MB).  
 - **Network → Response** may be empty for **fake response** mocks (see [Network tab vs mocked responses](#network-tab-vs-mocked-responses)).
 
+## Roadmap
+
+Planned improvements, known gaps, and out-of-scope items: **[ROADMAP.md](ROADMAP.md)** ([Русский](ROADMAP.ru.md)).
+
 ## Technical
 
 - `Fetch.enable` on `*`, `Fetch.requestPaused` → `fulfillRequest` (response) or `continueRequest` (request)  
