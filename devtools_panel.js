@@ -1,4 +1,4 @@
-/* global chrome, MockWeaveI18n */
+/* global chrome, MockWeaveI18n, MockWeaveTheme */
 
 const t = (key, vars) => MockWeaveI18n.t(key, vars);
 
@@ -1741,6 +1741,9 @@ function wireDetailEditor() {
 }
 
 async function main() {
+  await MockWeaveTheme.init();
+  MockWeaveTheme.wireThemeSwitch(document);
+
   await MockWeaveI18n.init();
   MockWeaveI18n.apply(document);
   MockWeaveI18n.wireLangSwitch(document);
@@ -1748,6 +1751,9 @@ async function main() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.locale) {
       void MockWeaveI18n.init().then(() => onLocaleChanged());
+    }
+    if (area === "local" && changes.theme) {
+      void MockWeaveTheme.init();
     }
   });
 

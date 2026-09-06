@@ -1,0 +1,156 @@
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --text: #e7eefc;
+  --muted: #a7b4d6;
+  --border: rgba(231, 238, 252, 0.12);
+  --btn: #223155;
+  --btnHover: #2b3e6d;
+  --danger: #b42318;
+  --dangerHover: #d92d20;
+  --ok: #17b26a;
+  --warn: #f79009;
+  --tag: rgba(23, 178, 106, 0.18);
+  --primary: #1d4a7a;
+  --primaryHover: #2563a8;
+  --primaryBorder: rgba(231, 238, 252, 0.22);
+  --primaryText: #f4f8ff;
+  --inputBg: rgba(0, 0, 0, 0.12);
+  --inputBgStrong: rgba(0, 0, 0, 0.2);
+  --inputBgMedium: rgba(0, 0, 0, 0.15);
+  --inputFocus: rgba(231, 238, 252, 0.28);
+  --surfaceRaised: rgba(0, 0, 0, 0.08);
+  --surfaceSunken: rgba(0, 0, 0, 0.1);
+  --hoverBg: rgba(255, 255, 255, 0.04);
+  --hoverBgSubtle: rgba(255, 255, 255, 0.03);
+  --selectedBg: rgba(23, 178, 106, 0.12);
+  --selectedBorder: rgba(23, 178, 106, 0.35);
+  --toolbarGrad: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  --dangerBg: rgba(180, 35, 24, 0.12);
+  --dangerBorder: rgba(180, 35, 24, 0.35);
+  --dangerText: #ffd5d2;
+  --dangerBgHover: rgba(217, 45, 32, 0.18);
+  --dangerBorderHover: rgba(217, 45, 32, 0.45);
+  --switchBg: rgba(231, 238, 252, 0.12);
+  --switchKnob: rgba(231, 238, 252, 0.9);
+  --switchOnBg: rgba(23, 178, 106, 0.18);
+  --switchOnBorder: rgba(23, 178, 106, 0.35);
+  --switchOnKnob: rgba(231, 238, 252, 0.98);
+  --splitterHover: rgba(23, 178, 106, 0.35);
+  --tagBorder: rgba(23, 178, 106, 0.35);
+  --tagText: #d0ffe8;
+  --tagReqBg: rgba(120, 90, 220, 0.2);
+  --tagReqBorder: rgba(150, 130, 255, 0.4);
+  --tagReqText: #e6e0ff;
+  --tagIncBg: rgba(247, 144, 9, 0.14);
+  --tagIncBorder: rgba(247, 144, 9, 0.35);
+  --tagIncText: #ffe8c8;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --text: #0f1729;
+  --muted: #5c6b8a;
+  --border: rgba(15, 23, 42, 0.12);
+  --btn: #e8edf5;
+  --btnHover: #d9e2ef;
+  --danger: #b42318;
+  --dangerHover: #d92d20;
+  --ok: #0d9f5f;
+  --warn: #dc6803;
+  --tag: rgba(13, 159, 95, 0.12);
+  --primary: #1d5faa;
+  --primaryHover: #2563b8;
+  --primaryBorder: rgba(29, 95, 170, 0.25);
+  --primaryText: #ffffff;
+  --inputBg: rgba(15, 23, 42, 0.04);
+  --inputBgStrong: rgba(15, 23, 42, 0.06);
+  --inputBgMedium: rgba(15, 23, 42, 0.05);
+  --inputFocus: rgba(37, 99, 184, 0.45);
+  --surfaceRaised: rgba(15, 23, 42, 0.03);
+  --surfaceSunken: rgba(15, 23, 42, 0.04);
+  --hoverBg: rgba(15, 23, 42, 0.05);
+  --hoverBgSubtle: rgba(15, 23, 42, 0.04);
+  --selectedBg: rgba(13, 159, 95, 0.12);
+  --selectedBorder: rgba(13, 159, 95, 0.35);
+  --toolbarGrad: linear-gradient(180deg, rgba(255, 255, 255, 0.85), transparent);
+  --dangerBg: rgba(180, 35, 24, 0.08);
+  --dangerBorder: rgba(180, 35, 24, 0.25);
+  --dangerText: #912018;
+  --dangerBgHover: rgba(217, 45, 32, 0.12);
+  --dangerBorderHover: rgba(217, 45, 32, 0.35);
+  --switchBg: rgba(15, 23, 42, 0.1);
+  --switchKnob: #ffffff;
+  --switchOnBg: rgba(13, 159, 95, 0.25);
+  --switchOnBorder: rgba(13, 159, 95, 0.4);
+  --switchOnKnob: #ffffff;
+  --splitterHover: rgba(13, 159, 95, 0.35);
+  --tagBorder: rgba(13, 159, 95, 0.35);
+  --tagText: #05603a;
+  --tagReqBg: rgba(105, 80, 200, 0.12);
+  --tagReqBorder: rgba(105, 80, 200, 0.35);
+  --tagReqText: #4a3380;
+  --tagIncBg: rgba(220, 104, 3, 0.12);
+  --tagIncBorder: rgba(220, 104, 3, 0.35);
+  --tagIncText: #93370d;
+}
+
+.toolbarControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.themeSwitch,
+.langSwitch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.themeBtn,
+.langBtn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.themeBtn:hover,
+.langBtn:hover {
+  color: var(--text);
+}
+
+.themeBtn.active,
+.langBtn.active {
+  color: var(--ok);
+}
+
+.themeSep,
+.langSep {
+  opacity: 0.45;
+  user-select: none;
+}
+
+.btn.primary {
+  color: var(--primaryText);
+  background: var(--primary);
+  border-color: var(--primaryBorder);
+}
+
+.btn.primary:hover {
+  color: var(--primaryText);
+  background: var(--primaryHover);
+}

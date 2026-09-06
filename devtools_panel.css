@@ -1,14 +1,4 @@
 :root {
-  --bg: #0b1220;
-  --panel: #111a2e;
-  --text: #e7eefc;
-  --muted: #a7b4d6;
-  --border: rgba(231, 238, 252, 0.12);
-  --btn: #223155;
-  --btnHover: #2b3e6d;
-  --ok: #17b26a;
-  --warn: #f79009;
-  --tag: rgba(23, 178, 106, 0.18);
   --sidebar-w: 38%;
   --sidebar-min: 260px;
   --sidebar-max: 55%;
@@ -49,7 +39,7 @@ h2 {
   flex: 0 0 auto;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  background: var(--toolbarGrad);
 }
 
 .toolbarRow {
@@ -59,39 +49,6 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.langSwitch {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.langBtn {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
-
-.langBtn:hover {
-  color: var(--text);
-}
-
-.langBtn.active {
-  color: var(--ok);
-}
-
-.langSep {
-  opacity: 0.45;
-  user-select: none;
 }
 
 .sendPane {
@@ -124,7 +81,7 @@ h2 {
   min-height: 0;
   border-right: 1px solid var(--border);
   padding: 12px 10px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--surfaceSunken);
   overflow: hidden;
 }
 
@@ -157,13 +114,13 @@ h2 {
 }
 
 .sendSavedItem:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hoverBg);
   border-color: var(--border);
 }
 
 .sendSavedItem.selected {
-  background: rgba(23, 178, 106, 0.12);
-  border-color: rgba(23, 178, 106, 0.35);
+  background: var(--selectedBg);
+  border-color: var(--selectedBorder);
 }
 
 .sendSavedName {
@@ -257,7 +214,7 @@ h2 {
   border-radius: 10px;
   padding: 8px 10px 10px;
   margin-bottom: 10px;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--inputBg);
 }
 
 .curlImportSummary {
@@ -349,7 +306,7 @@ h2 {
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--surfaceRaised);
 }
 
 .splitter {
@@ -362,7 +319,7 @@ h2 {
 
 .splitter:hover,
 .splitter.dragging {
-  background: rgba(23, 178, 106, 0.35);
+  background: var(--splitterHover);
 }
 
 .detailPane {
@@ -441,7 +398,7 @@ h2 {
 
 .navTab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--hoverBgSubtle);
 }
 
 .navTab.active {
@@ -470,7 +427,7 @@ h2 {
   flex: 1;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--inputBgStrong);
   color: var(--text);
   border-radius: 8px;
   font: inherit;
@@ -483,7 +440,7 @@ h2 {
 
 .search:focus {
   outline: none;
-  border-color: rgba(231, 238, 252, 0.28);
+  border-color: var(--inputFocus);
 }
 
 .statusField {
@@ -492,7 +449,7 @@ h2 {
   font: inherit;
   text-align: center;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--inputBgStrong);
   color: var(--text);
   border-radius: 6px;
 }
@@ -502,15 +459,6 @@ h2 {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-}
-
-.btn.primary {
-  background: #1d4a7a;
-  border-color: rgba(231, 238, 252, 0.22);
-}
-
-.btn.primary:hover {
-  background: #2563a8;
 }
 
 .field {
@@ -548,7 +496,7 @@ h2 {
   min-height: 2.5rem;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--inputBgMedium);
   color: var(--text);
   border-radius: 8px;
   font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
@@ -571,38 +519,40 @@ h2 {
 
 .ta:focus {
   outline: none;
-  border-color: rgba(231, 238, 252, 0.28);
+  border-color: var(--inputFocus);
 }
 
 .btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   background: var(--btn);
   color: var(--text);
   padding: 4px 8px;
   border-radius: 8px;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .btn:hover {
   background: var(--btnHover);
 }
 
-.btn.sm {
-  padding: 2px 6px;
-  font-size: 11px;
-}
-
 .btn.danger {
-  background: rgba(180, 35, 24, 0.12);
-  border-color: rgba(180, 35, 24, 0.35);
-  color: #ffd5d2;
+  background: var(--dangerBg);
+  border-color: var(--dangerBorder);
+  color: var(--dangerText);
 }
 
 .btn.danger:hover {
-  background: rgba(217, 45, 32, 0.18);
+  background: var(--dangerBgHover);
 }
 
 .tableWrap {
@@ -639,11 +589,11 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--hoverBgSubtle);
 }
 
 tbody tr.selected {
-  background: rgba(23, 178, 106, 0.12);
+  background: var(--selectedBg);
 }
 
 tr:last-child td {
@@ -679,15 +629,15 @@ tr:last-child td {
 .tag,
 .kindRes {
   background: var(--tag);
-  border: 1px solid rgba(23, 178, 106, 0.35);
-  color: #d0ffe8;
+  border: 1px solid var(--tagBorder);
+  color: var(--tagText);
 }
 
 .tagReq,
 .kindReq {
-  background: rgba(120, 90, 220, 0.2);
-  border: 1px solid rgba(150, 130, 255, 0.4);
-  color: #e6e0ff;
+  background: var(--tagReqBg);
+  border: 1px solid var(--tagReqBorder);
+  color: var(--tagReqText);
 }
 
 .kindInc {
@@ -698,9 +648,9 @@ tr:last-child td {
   font-weight: 600;
   white-space: nowrap;
   margin-right: 4px;
-  background: rgba(247, 144, 9, 0.14);
-  border: 1px solid rgba(247, 144, 9, 0.35);
-  color: #ffe8c8;
+  background: var(--tagIncBg);
+  border: 1px solid var(--tagIncBorder);
+  color: var(--tagIncText);
 }
 
 .editBlock[hidden] {

@@ -4,16 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MockWeave</title>
+    <link rel="stylesheet" href="theme.css" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header class="header">
       <div class="title" id="extTitle">MockWeave</div>
       <div class="headerRight">
-        <div class="langSwitch" aria-label="Language">
-          <button type="button" class="langBtn" data-lang="en" data-i18n="langEn">EN</button>
-          <span class="langSep">|</span>
-          <button type="button" class="langBtn" data-lang="ru" data-i18n="langRu">RU</button>
+        <div class="toolbarControls">
+          <div class="themeSwitch" data-i18n-attr="aria-label" data-i18n="themeAria" aria-label="Theme">
+            <button type="button" class="themeBtn" data-theme-pick="dark" data-i18n="themeDark" data-i18n-title="themeDarkTitle" title="Dark theme">Dark</button>
+            <span class="themeSep">|</span>
+            <button type="button" class="themeBtn" data-theme-pick="light" data-i18n="themeLight" data-i18n-title="themeLightTitle" title="Light theme">Light</button>
+          </div>
+          <div class="langSwitch" data-i18n-attr="aria-label" data-i18n="langAria" aria-label="Language">
+            <button type="button" class="langBtn" data-lang="en" data-i18n="langEn">EN</button>
+            <span class="langSep">|</span>
+            <button type="button" class="langBtn" data-lang="ru" data-i18n="langRu">RU</button>
+          </div>
         </div>
         <label class="switch">
           <input id="enabledToggle" type="checkbox" />
@@ -124,6 +132,7 @@
       </div>
     </template>
 
+    <script src="theme.js"></script>
     <script src="i18n.js"></script>
     <script src="popup.js"></script>
   </body>
