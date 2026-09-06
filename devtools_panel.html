@@ -10,15 +10,20 @@
         <div class="toolbarRow">
           <label class="row">
             <input id="enabledToggle" type="checkbox" />
-            <span>Intercept HTTP for the inspected page</span>
+            <span data-i18n="intercept">Intercept HTTP for the inspected page</span>
           </label>
+          <div class="langSwitch" aria-label="Language">
+            <button type="button" class="langBtn" data-lang="en" data-i18n="langEn">EN</button>
+            <span class="langSep">|</span>
+            <button type="button" class="langBtn" data-lang="ru" data-i18n="langRu">RU</button>
+          </div>
         </div>
         <nav class="navTabs" role="tablist" aria-label="MockWeave views">
-          <button type="button" class="navTab active" data-view="captured" role="tab" aria-selected="true">
+          <button type="button" class="navTab active" data-view="captured" role="tab" aria-selected="true" data-i18n="tabCaptured">
             Captured
           </button>
-          <button type="button" class="navTab" data-view="rules" role="tab" aria-selected="false">Rules</button>
-          <button type="button" class="navTab" data-view="send" role="tab" aria-selected="false">Send</button>
+          <button type="button" class="navTab" data-view="rules" role="tab" aria-selected="false" data-i18n="tabRules">Rules</button>
+          <button type="button" class="navTab" data-view="send" role="tab" aria-selected="false" data-i18n="tabSend">Send</button>
         </nav>
         <div id="tabIdLine" class="muted small"></div>
         <div id="statusLine" class="status"></div>
@@ -31,23 +36,25 @@
               type="search"
               id="capturedFilter"
               class="search"
+              data-i18n-placeholder="filterCaptured"
               placeholder="Filter by URL"
               spellcheck="false"
               aria-label="Filter captured requests by URL"
             />
-            <button type="button" class="btn" id="clearCaptured">Clear</button>
+            <button type="button" class="btn" id="clearCaptured" data-i18n="clear">Clear</button>
           </div>
           <div class="sidebarTools" id="rulesTools" hidden>
             <input
               type="search"
               id="rulesFilter"
               class="search"
+              data-i18n-placeholder="filterRules"
               placeholder="Filter URL, status, body"
               spellcheck="false"
               aria-label="Filter rules"
             />
-            <button type="button" class="btn primary" id="addRuleBtn">Add rule</button>
-            <button type="button" class="btn" id="refreshRules">Refresh</button>
+            <button type="button" class="btn primary" id="addRuleBtn" data-i18n="addRule">Add rule</button>
+            <button type="button" class="btn" id="refreshRules" data-i18n="refresh">Refresh</button>
           </div>
 
           <div class="listPane" id="capturedPane">
@@ -55,9 +62,9 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Method</th>
-                    <th>Status</th>
-                    <th>URL</th>
+                    <th data-i18n="thMethod">Method</th>
+                    <th data-i18n="thStatus">Status</th>
+                    <th data-i18n="thUrl">URL</th>
                   </tr>
                 </thead>
                 <tbody id="capturedBody"></tbody>
@@ -69,9 +76,9 @@
               <table>
                 <thead>
                   <tr>
-                    <th>On</th>
-                    <th>Status</th>
-                    <th>URL / pattern</th>
+                    <th data-i18n="thOn">On</th>
+                    <th data-i18n="thStatus">Status</th>
+                    <th data-i18n="thUrlPattern">URL / pattern</th>
                   </tr>
                 </thead>
                 <tbody id="rulesBody"></tbody>
@@ -85,82 +92,81 @@
         <main class="detailPane" id="detailPane">
           <div id="detailEmpty" class="detailEmpty">
             <h2>MockWeave</h2>
-            <p class="hint">
+            <p class="hint" data-i18n-html="detailEmptyHint">
               Select a captured request or rule on the left, click <strong>Add rule</strong> on Rules, or use
               <strong>Send</strong> to replay HTTP manually. Edit response body and headers here with full panel height.
             </p>
             <ul class="hintList">
-              <li><strong>Captured</strong> — traffic while DevTools is open</li>
-              <li><strong>Rules</strong> — active mocks (same storage as the toolbar popup)</li>
-              <li><strong>Send</strong> — Postman-style replay (direct or via page for mocks)</li>
+              <li data-i18n-html="detailCaptured"><strong>Captured</strong> — traffic while DevTools is open</li>
+              <li data-i18n-html="detailRules"><strong>Rules</strong> — active mocks (same storage as the toolbar popup)</li>
+              <li data-i18n-html="detailSend"><strong>Send</strong> — Postman-style replay (direct or via page for mocks)</li>
             </ul>
           </div>
 
           <div id="detailEditor" class="detailEditor" hidden>
             <div class="detailHeader">
-              <h2 id="editRuleTitle">Edit rule</h2>
+              <h2 id="editRuleTitle" data-i18n="editRule">Edit rule</h2>
               <div class="detailActions">
-                <button type="button" class="btn" id="edReplaySend" hidden>Replay in Send</button>
-                <button type="button" class="btn" id="edCancel">Close</button>
-                <button type="button" class="btn primary" id="edSave">Save</button>
-                <button type="button" class="btn danger" id="edDelete" hidden>Delete</button>
+                <button type="button" class="btn" id="edReplaySend" hidden data-i18n="replayInSend">Replay in Send</button>
+                <button type="button" class="btn" id="edCancel" data-i18n="close">Close</button>
+                <button type="button" class="btn primary" id="edSave" data-i18n="save">Save</button>
+                <button type="button" class="btn danger" id="edDelete" hidden data-i18n="delete">Delete</button>
               </div>
             </div>
 
             <div class="detailScroll">
               <label class="field">
-                <div class="label">Match (URL or pattern)</div>
+                <div class="label" data-i18n="labelMatchUrl">Match (URL or pattern)</div>
                 <input type="text" id="edUrl" class="search full" spellcheck="false" />
               </label>
               <div class="field">
                 <label class="row tight">
                   <input type="checkbox" id="edUrlIncluded" />
-                  <span
-                    title="Match when the request URL contains this text as a substring (e.g. hello/world matches …/hello/world/123)."
+                  <span data-i18n="included" data-i18n-title="includedTitle" title="Match when the request URL contains this text as a substring (e.g. hello/world matches …/hello/world/123)."
                     >Included</span
                   >
                 </label>
               </div>
               <label class="field">
-                <div class="label">Mode</div>
+                <div class="label" data-i18n="labelMode">Mode</div>
                 <select id="edKind" class="search full" aria-label="Rule mode">
-                  <option value="response">Fake response to the app</option>
-                  <option value="request">Override outgoing request (server returns real response)</option>
+                  <option value="response" data-i18n="modeResponse">Fake response to the app</option>
+                  <option value="request" data-i18n="modeRequest">Override outgoing request (server returns real response)</option>
                 </select>
               </label>
 
               <div id="edResBlock" class="editBlock">
                 <div class="fieldRow">
                   <label class="field grow">
-                    <div class="label">Response HTTP status</div>
+                    <div class="label" data-i18n="labelResStatus">Response HTTP status</div>
                     <input type="number" id="edStatus" class="search" min="100" max="599" />
                   </label>
                 </div>
                 <label class="field">
-                  <div class="label">Response headers (JSON object)</div>
+                  <div class="label" data-i18n="labelResHeaders">Response headers (JSON object)</div>
                   <textarea id="edHeaders" class="ta taHeaders" spellcheck="false"></textarea>
                 </label>
                 <label class="field fieldGrow">
-                  <div class="label">Response body</div>
+                  <div class="label" data-i18n="labelResBody">Response body</div>
                   <textarea id="edBody" class="ta taBody" spellcheck="false"></textarea>
                 </label>
               </div>
 
               <div id="edReqBlock" class="editBlock" hidden>
                 <label class="field">
-                  <div class="label">Override method (empty = keep)</div>
+                  <div class="label" data-i18n="labelReqMethod">Override method (empty = keep)</div>
                   <input type="text" id="edReqMethod" class="search full" spellcheck="false" />
                 </label>
                 <label class="field">
-                  <div class="label">Override URL (empty = keep)</div>
+                  <div class="label" data-i18n="labelReqUrl">Override URL (empty = keep)</div>
                   <input type="text" id="edReqUrl" class="search full" spellcheck="false" />
                 </label>
                 <label class="field">
-                  <div class="label">Request header overrides (JSON, merged on top of the live request)</div>
+                  <div class="label" data-i18n="labelReqHeaders">Request header overrides (JSON, merged on top of the live request)</div>
                   <textarea id="edReqHeaders" class="ta taHeaders" spellcheck="false"></textarea>
                 </label>
                 <label class="field fieldGrow">
-                  <div class="label">Request body (replace; clear and save to use the browser’s original body)</div>
+                  <div class="label" data-i18n="labelReqBody">Request body (replace; clear and save to use the browser’s original body)</div>
                   <textarea id="edReqBody" class="ta taBody" spellcheck="false"></textarea>
                 </label>
               </div>
@@ -172,30 +178,30 @@
           <div class="sendOuter">
             <aside class="sendSavedCol">
               <div class="sendBlockHeader">
-                <h2>Saved</h2>
-                <button type="button" class="btn sm" id="sendSavedNew" title="Clear form for a new request">New</button>
+                <h2 data-i18n="sendSaved">Saved</h2>
+                <button type="button" class="btn sm" id="sendSavedNew" data-i18n="sendNew" data-i18n-title="sendNewTitle" title="Clear form for a new request">New</button>
               </div>
-              <p class="hint sendSavedHint">Click a saved request to load it. Save stores method, URL, headers, body, and send mode.</p>
-              <div id="sendSavedList" class="sendSavedList muted">No saved requests yet.</div>
+              <p class="hint sendSavedHint" data-i18n="sendSavedHint">Click a saved request to load it. Save stores method, URL, headers, body, and send mode.</p>
+              <div id="sendSavedList" class="sendSavedList muted" data-i18n="sendNoSaved">No saved requests yet.</div>
             </aside>
 
             <div class="sendLayout">
             <div class="sendCol sendRequest">
               <div class="sendBlockHeader">
-                <h2>Request</h2>
+                <h2 data-i18n="sendRequest">Request</h2>
                 <div class="btnRow">
-                  <button type="button" class="btn sm" id="sendSaveBtn" title="Save or update the current request">Save</button>
-                  <button type="button" class="btn sm" id="sendSaveAsBtn" title="Save as a new named request">Save as…</button>
-                  <button type="button" class="btn sm danger" id="sendDeleteSavedBtn" hidden title="Delete selected saved request">
+                  <button type="button" class="btn sm" id="sendSaveBtn" data-i18n="sendSave" data-i18n-title="sendSaveTitle" title="Save or update the current request">Save</button>
+                  <button type="button" class="btn sm" id="sendSaveAsBtn" data-i18n="sendSaveAs" data-i18n-title="sendSaveAsTitle" title="Save as a new named request">Save as…</button>
+                  <button type="button" class="btn sm danger" id="sendDeleteSavedBtn" hidden data-i18n="sendDelete" data-i18n-title="sendDeleteTitle" title="Delete selected saved request">
                     Delete
                   </button>
-                  <button type="button" class="btn primary" id="sendBtn">Send</button>
+                  <button type="button" class="btn primary" id="sendBtn" data-i18n="sendBtn">Send</button>
                 </div>
               </div>
               <details class="curlImport" id="curlImport">
-                <summary class="curlImportSummary">Import from curl</summary>
+                <summary class="curlImportSummary" data-i18n="curlImport">Import from curl</summary>
                 <label class="field">
-                  <div class="label">Paste a curl command (from DevTools → Copy as cURL)</div>
+                  <div class="label" data-i18n="curlImportLabel">Paste a curl command (from DevTools → Copy as cURL)</div>
                   <textarea
                     id="sendCurlInput"
                     class="ta curlTa"
@@ -204,16 +210,16 @@
                   ></textarea>
                 </label>
                 <div class="btnRow curlImportActions">
-                  <button type="button" class="btn sm" id="sendCurlPaste" title="Paste curl from clipboard (or press ⌘V / Ctrl+V in the box below)">
+                  <button type="button" class="btn sm" id="sendCurlPaste" data-i18n="curlPaste" data-i18n-title="curlPasteTitle" title="Paste curl from clipboard (or press ⌘V / Ctrl+V in the box below)">
                     Paste
                   </button>
-                  <button type="button" class="btn sm" id="sendCurlImport">Import</button>
-                  <button type="button" class="btn sm primary" id="sendCurlImportSend">Import &amp; Send</button>
+                  <button type="button" class="btn sm" id="sendCurlImport" data-i18n="curlImportBtn">Import</button>
+                  <button type="button" class="btn sm primary" id="sendCurlImportSend" data-i18n="curlImportSend">Import &amp; Send</button>
                 </div>
               </details>
               <div class="fieldRow sendMethodRow">
                 <label class="field methodField">
-                  <div class="label">Method</div>
+                  <div class="label" data-i18n="labelMethod">Method</div>
                   <select id="sendMethod" class="search" aria-label="HTTP method">
                     <option>GET</option>
                     <option>POST</option>
@@ -225,23 +231,23 @@
                   </select>
                 </label>
                 <label class="field grow">
-                  <div class="label">URL</div>
+                  <div class="label" data-i18n="labelUrl">URL</div>
                   <input type="text" id="sendUrl" class="search full" placeholder="https://api.example/v1/…" spellcheck="false" />
                 </label>
               </div>
               <fieldset class="sendModeField">
-                <legend class="label">Send via</legend>
+                <legend class="label" data-i18n="sendVia">Send via</legend>
                 <label class="row tight">
                   <input type="radio" name="sendMode" value="direct" checked />
-                  <span><strong>Direct</strong> — extension calls the real API (mocks do not apply)</span>
+                  <span data-i18n-html="sendDirect"><strong>Direct</strong> — extension calls the real API (mocks do not apply)</span>
                 </label>
                 <label class="row tight">
                   <input type="radio" name="sendMode" value="page" />
-                  <span><strong>Via page</strong> — fetch in the inspected tab (mocks &amp; cookies apply)</span>
+                  <span data-i18n-html="sendViaPage"><strong>Via page</strong> — fetch in the inspected tab (mocks &amp; cookies apply)</span>
                 </label>
               </fieldset>
               <label class="field">
-                <div class="label">Request headers (JSON object)</div>
+                <div class="label" data-i18n="labelSendReqHeaders">Request headers (JSON object)</div>
                 <textarea
                   id="sendReqHeaders"
                   class="ta taHeaders"
@@ -253,23 +259,23 @@
                 ></textarea>
               </label>
               <label class="field fieldGrow">
-                <div class="label">Request body</div>
+                <div class="label" data-i18n="labelSendReqBody">Request body</div>
                 <textarea id="sendReqBody" class="ta taBody" spellcheck="false"></textarea>
               </label>
             </div>
 
             <div class="sendCol sendResponse">
               <div class="sendBlockHeader">
-                <h2>Response</h2>
-                <button type="button" class="btn" id="sendMockBtn" hidden>Create mock from response</button>
+                <h2 data-i18n="sendResponse">Response</h2>
+                <button type="button" class="btn" id="sendMockBtn" hidden data-i18n="createMockFromResponse">Create mock from response</button>
               </div>
-              <div id="sendMeta" class="sendMeta muted">Send a request to see status, timing, and body.</div>
+              <div id="sendMeta" class="sendMeta muted" data-i18n="sendMetaEmpty">Send a request to see status, timing, and body.</div>
               <label class="field">
-                <div class="label">Response headers (JSON)</div>
+                <div class="label" data-i18n="labelSendResHeaders">Response headers (JSON)</div>
                 <textarea id="sendResHeaders" class="ta taHeaders" readonly spellcheck="false"></textarea>
               </label>
               <label class="field fieldGrow">
-                <div class="label">Response body</div>
+                <div class="label" data-i18n="labelSendResBody">Response body</div>
                 <textarea id="sendResBody" class="ta taBody" readonly spellcheck="false"></textarea>
               </label>
             </div>
@@ -279,6 +285,7 @@
       </div>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="devtools_panel.js"></script>
   </body>
 </html>

@@ -9,10 +9,17 @@
   <body>
     <header class="header">
       <div class="title" id="extTitle">MockWeave</div>
-      <label class="switch">
-        <input id="enabledToggle" type="checkbox" />
-        <span class="slider"></span>
-      </label>
+      <div class="headerRight">
+        <div class="langSwitch" aria-label="Language">
+          <button type="button" class="langBtn" data-lang="en" data-i18n="langEn">EN</button>
+          <span class="langSep">|</span>
+          <button type="button" class="langBtn" data-lang="ru" data-i18n="langRu">RU</button>
+        </div>
+        <label class="switch">
+          <input id="enabledToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
     </header>
 
     <div id="statusLine" class="status"></div>
@@ -20,8 +27,8 @@
     <main>
       <section class="section">
         <div class="sectionHeader">
-          <div class="sectionTitle">Rules</div>
-          <button id="addRuleBtn" class="btn">Add</button>
+          <div class="sectionTitle" data-i18n="popupRules">Rules</div>
+          <button id="addRuleBtn" class="btn" data-i18n="popupAdd">Add</button>
         </div>
         <div id="rulesList" class="rules"></div>
       </section>
@@ -30,87 +37,94 @@
     <template id="ruleTemplate">
       <div class="rule" data-collapsed="true">
         <div class="ruleHeader">
-          <button type="button" class="btn ruleToggle" aria-expanded="false" title="Show rule details">
+          <button
+            type="button"
+            class="btn ruleToggle"
+            aria-expanded="false"
+            data-i18n-title="popupShowDetails"
+            title="Show rule details"
+          >
             ▶
           </button>
           <div class="ruleSummary"></div>
           <label class="checkboxRow">
             <input class="ruleEnabled" type="checkbox" />
-            <span>Enabled</span>
+            <span data-i18n="popupEnabled">Enabled</span>
           </label>
-          <button type="button" class="btn danger ruleDelete">Delete</button>
+          <button type="button" class="btn danger ruleDelete" data-i18n="popupDelete">Delete</button>
         </div>
 
         <div class="ruleDetails" hidden>
           <label class="field">
-          <div class="label">URL (paste full URL or use regex with re:)</div>
-          <input
-            class="input ruleRegex"
-            placeholder="paste full URL, or: re:https://api\\.example\\.com/v1/items\\?regionId=\\d+"
-          />
+            <div class="label" data-i18n="popupLabelUrl">URL (paste full URL or use regex with re:)</div>
+            <input
+              class="input ruleRegex"
+              data-i18n-placeholder="popupUrlPlaceholder"
+              placeholder="paste full URL, or: re:https://api\\.example\\.com/v1/items\\?regionId=\\d+"
+            />
           </label>
 
           <label class="checkboxRow ruleUrlIncludedRow">
             <input class="ruleUrlIncluded" type="checkbox" />
-            <span
-              title="When checked, the URL field is matched as plain text anywhere in the request URL (e.g. hello/world matches …/hello/world/123)."
-              >Included</span>
+            <span data-i18n="included" data-i18n-title="includedTitle" title="When checked, the URL field is matched as plain text anywhere in the request URL (e.g. hello/world matches …/hello/world/123).">Included</span>
           </label>
 
           <label class="field">
-          <div class="label">Mode</div>
-          <select class="input ruleKind">
-            <option value="response">Fake response to the app (no real server for this call)</option>
-            <option value="request">Override outgoing request (URL / method / headers / body; real response from server)</option>
-          </select>
+            <div class="label" data-i18n="popupLabelMode">Mode</div>
+            <select class="input ruleKind">
+              <option value="response" data-i18n="popupModeResponse">Fake response to the app (no real server for this call)</option>
+              <option value="request" data-i18n="popupModeRequest">
+                Override outgoing request (URL / method / headers / body; real response from server)
+              </option>
+            </select>
           </label>
 
           <div class="ruleResponseFields">
-          <div class="grid2">
-            <label class="field">
-              <div class="label">Status</div>
-              <input class="input ruleStatus" type="number" min="100" max="599" />
-            </label>
-            <label class="field">
-              <div class="label">Content-Type (optional)</div>
-              <input class="input ruleContentType" placeholder="application/json" />
-            </label>
-          </div>
+            <div class="grid2">
+              <label class="field">
+                <div class="label" data-i18n="popupLabelStatus">Status</div>
+                <input class="input ruleStatus" type="number" min="100" max="599" />
+              </label>
+              <label class="field">
+                <div class="label" data-i18n="popupLabelContentType">Content-Type (optional)</div>
+                <input class="input ruleContentType" placeholder="application/json" />
+              </label>
+            </div>
 
-          <label class="field">
-            <div class="label">Response headers (JSON object)</div>
-            <textarea class="textarea ruleHeaders" rows="4" spellcheck="false"></textarea>
-          </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelResHeaders">Response headers (JSON object)</div>
+              <textarea class="textarea ruleHeaders" rows="4" spellcheck="false"></textarea>
+            </label>
 
-          <label class="field">
-            <div class="label">Response body</div>
-            <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
-          </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelResBody">Response body</div>
+              <textarea class="textarea ruleBody" rows="6" spellcheck="false"></textarea>
+            </label>
           </div>
 
           <div class="ruleRequestFields" hidden>
-          <label class="field">
-            <div class="label">Override method (empty = as sent by the page)</div>
-            <input class="input ruleRequestMethod" placeholder="e.g. POST, PUT" spellcheck="false" />
-          </label>
-          <label class="field">
-            <div class="label">Override URL (empty = original request URL)</div>
-            <input class="input ruleRequestUrl" type="text" placeholder="https://…" spellcheck="false" />
-          </label>
-          <label class="field">
-            <div class="label">Request header overrides (JSON object, merged on top of the actual request)</div>
-            <textarea class="textarea ruleRequestHeaders" rows="3" spellcheck="false"></textarea>
-          </label>
-          <label class="field">
-            <div class="label">Request body (replace; leave empty to keep the browser’s original body)</div>
-            <textarea class="textarea ruleRequestBody" rows="4" spellcheck="false"></textarea>
-          </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelReqMethod">Override method (empty = as sent by the page)</div>
+              <input class="input ruleRequestMethod" placeholder="e.g. POST, PUT" spellcheck="false" />
+            </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelReqUrl">Override URL (empty = original request URL)</div>
+              <input class="input ruleRequestUrl" type="text" placeholder="https://…" spellcheck="false" />
+            </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelReqHeaders">Request header overrides (JSON object, merged on top of the actual request)</div>
+              <textarea class="textarea ruleRequestHeaders" rows="3" spellcheck="false"></textarea>
+            </label>
+            <label class="field">
+              <div class="label" data-i18n="popupLabelReqBody">Request body (replace; leave empty to keep the browser’s original body)</div>
+              <textarea class="textarea ruleRequestBody" rows="4" spellcheck="false"></textarea>
+            </label>
           </div>
         </div>
       </div>
     </template>
 
+    <script src="i18n.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
-

@@ -1,3 +1,16 @@
+/* global chrome, MockWeaveI18n */
+
+const t = (key, vars) => MockWeaveI18n.t(key, vars);
+
+function onLocaleChanged() {
+  MockWeaveI18n.apply(document);
+  for (const node of document.querySelectorAll("#rulesList .rule")) {
+    updateRuleSummary(node);
+    const collapsed = node.dataset.collapsed === "true";
+    setRuleCollapsed(node, collapsed);
+  }
+}
+
 async function getActiveTabId() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -31,7 +44,7 @@ function parseHeadersJson(text) {
   if (!trimmed) return {};
   const parsed = JSON.parse(trimmed);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Headers JSON must be an object");
+    throw new Error(t("errHeadersObject"));
   }
   const out = {};
   for (const [k, v] of Object.entries(parsed)) out[String(k)] = String(v);
@@ -66,15 +79,15 @@ function updateRuleSummary(node) {
   const urlIncEl = node.querySelector(".ruleUrlIncluded");
   if (!summaryEl || !kindEl || !regexEl) return;
   const isReq = kindEl.value === "request";
-  const modeLabel = isReq ? "Request override" : "Fake response";
+  const modeLabel = isReq ? t("popupModeRequestShort") : t("popupModeFake");
   let url = String(regexEl.value || "")
     .replace(/\s+/g, " ")
     .trim();
-  if (!url) url = "(no URL)";
+  if (!url) url = t("popupNoUrl");
   else if (url.length > RULE_SUMMARY_MAX_LEN) {
     url = `${url.slice(0, RULE_SUMMARY_MAX_LEN - 1)}…`;
   }
-  const inc = urlIncEl?.checked ? "Include · " : "";
+  const inc = urlIncEl?.checked ? t("popupIncludePrefix") : "";
   summaryEl.textContent = `${inc}${modeLabel} · ${url}`;
 }
 
@@ -86,7 +99,7 @@ function setRuleCollapsed(node, collapsed) {
   details.hidden = collapsed;
   toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
   toggle.textContent = collapsed ? "▶" : "▼";
-  toggle.title = collapsed ? "Show rule details" : "Hide rule details";
+  toggle.title = collapsed ? t("popupShowDetails") : t("popupHideDetails");
 }
 
 function renderRules(rules, onChange) {
@@ -96,6 +109,7 @@ function renderRules(rules, onChange) {
   const tpl = byId("ruleTemplate");
   for (const rule of rules) {
     const node = tpl.content.firstElementChild.cloneNode(true);
+    MockWeaveI18n.apply(node);
 
     const enabledEl = node.querySelector(".ruleEnabled");
     const regexEl = node.querySelector(".ruleRegex");
@@ -271,11 +285,11 @@ async function scheduleSave() {
       // - if it's regex mode, it must compile
       for (const r of nextRules) {
         if (!r.enabled) continue;
-        if (!r.urlRegex) throw new Error("Enabled rule missing URL regex");
+        if (!r.urlRegex) throw new Error(t("errEnabledNoUrl"));
         if (r.urlIncluded) continue;
         const matcher = parseUrlMatcherInput(r.urlRegex);
         if (matcher.mode === "none" || !matcher.source) {
-          throw new Error("Enabled rule missing URL matcher");
+          throw new Error(t("errEnabledNoMatcher"));
         }
         if (matcher.mode === "regex") {
           // eslint-disable-next-line no-new
@@ -285,8 +299,8 @@ async function scheduleSave() {
 
       rulesModel = nextRules;
       const res = await callBackground({ type: "UPSERT_RULES", rules: rulesModel });
-      if (!res?.ok) throw new Error(res?.error || "Failed to save rules");
-      setStatus("Saved", "ok");
+      if (!res?.ok) throw new Error(res?.error || t("errSaveRulesFailed"));
+      setStatus(t("popupSaved"), "ok");
     } catch (e) {
       setStatus(e?.message || String(e), "warn");
     }
@@ -294,17 +308,27 @@ async function scheduleSave() {
 }
 
 async function init() {
+  await MockWeaveI18n.init();
+  MockWeaveI18n.apply(document);
+  MockWeaveI18n.wireLangSwitch(document);
+  window.addEventListener("mockweave-locale-change", onLocaleChanged);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.locale) {
+      void MockWeaveI18n.init().then(() => onLocaleChanged());
+    }
+  });
+
   try {
     activeTabId = await getActiveTabId();
   } catch (e) {
-    setStatus("Open a normal tab to use mocking.", "warn");
+    setStatus(t("popupOpenTab"), "warn");
     byId("enabledToggle").disabled = true;
     return;
   }
 
   const state = await callBackground({ type: "GET_STATE", tabId: activeTabId });
   if (!state?.ok) {
-    setStatus("Failed to load state", "warn");
+    setStatus(t("statusLoadFailed"), "warn");
     return;
   }
 
@@ -314,14 +338,14 @@ async function init() {
 
   enabledToggle.addEventListener("change", async () => {
     try {
-      setStatus(enabledToggle.checked ? "Enabling…" : "Disabling…");
+      setStatus(enabledToggle.checked ? t("statusEnabling") : t("statusDisabling"));
       const res = await callBackground({
         type: "SET_ENABLED",
         tabId: activeTabId,
         enabled: enabledToggle.checked
       });
-      if (!res?.ok) throw new Error(res?.error || "Failed");
-      setStatus(enabledToggle.checked ? "Enabled for this tab" : "Disabled for this tab", "ok");
+      if (!res?.ok) throw new Error(res?.error || t("statusToggleFailed"));
+      setStatus(enabledToggle.checked ? t("popupEnabledTab") : t("popupDisabledTab"), "ok");
     } catch (e) {
       enabledToggle.checked = !enabledToggle.checked;
       setStatus(e?.message || String(e), "warn");
@@ -346,7 +370,7 @@ async function init() {
   });
 
   renderRules(rulesModel, scheduleSave);
-  setStatus(enabledToggle.checked ? "Enabled for this tab" : "Disabled for this tab");
+  setStatus(enabledToggle.checked ? t("popupEnabledTab") : t("popupDisabledTab"));
 }
 
 init().catch((e) => setStatus(e?.message || String(e), "warn"));

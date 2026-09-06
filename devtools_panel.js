@@ -1,4 +1,33 @@
-/* global chrome */
+/* global chrome, MockWeaveI18n */
+
+const t = (key, vars) => MockWeaveI18n.t(key, vars);
+
+function refreshTabIdLine() {
+  const line = document.getElementById("tabIdLine");
+  if (!line) return;
+  line.textContent =
+    inspectedTabId != null ? t("tabIdLine", { id: inspectedTabId }) : t("tabIdMissing");
+}
+
+function onLocaleChanged() {
+  MockWeaveI18n.apply(document);
+  refreshTabIdLine();
+  const sendBtn = document.getElementById("sendBtn");
+  if (sendBtn && sendBtn.textContent !== t("sending")) sendBtn.textContent = t("sendBtn");
+  if (isCreatingNewRule) {
+    const title = document.getElementById("editRuleTitle");
+    const save = document.getElementById("edSave");
+    if (title) title.textContent = t("newRule");
+    if (save && save.textContent !== t("waitingBody")) save.textContent = t("create");
+  } else if (editingRuleId) {
+    const title = document.getElementById("editRuleTitle");
+    const save = document.getElementById("edSave");
+    if (title) title.textContent = t("editRule");
+    if (save) save.textContent = t("save");
+  }
+  if (!lastSendResult) clearSendResponse();
+  void renderAll();
+}
 
 const MAX_CAPTURED = 200;
 /** Truncate very large response bodies in memory to avoid OOM. */
@@ -295,7 +324,7 @@ async function refreshMatchMap() {
   }
   const res = await sendToBg({ type: "MATCH_URLS", urls });
   if (!res?.ok) {
-    setStatus(res?.error || "Could not match URLs", "warn");
+    setStatus(res?.error || t("statusMatchFailed"), "warn");
     matchByUrl = new Map();
     return;
   }
@@ -308,17 +337,17 @@ async function refreshMatchMap() {
 
 async function loadState() {
   if (inspectedTabId == null) {
-    setStatus("This panel needs an inspected page tab (open DevTools on a real tab).", "warn");
+    setStatus(t("noInspectedTab"), "warn");
     return;
   }
   const res = await sendToBg({ type: "GET_STATE", tabId: inspectedTabId });
   if (!res?.ok) {
-    setStatus(res?.error || "Failed to load state", "warn");
+    setStatus(res?.error || t("statusLoadFailed"), "warn");
     return;
   }
   rulesCache = Array.isArray(res.rules) ? res.rules : [];
-  const t = document.getElementById("enabledToggle");
-  if (t) t.checked = !!res.enabled;
+  const enabledEl = document.getElementById("enabledToggle");
+  if (enabledEl) enabledEl.checked = !!res.enabled;
 }
 
 function setActiveView(view) {
@@ -379,10 +408,10 @@ function showCapturePreview(item) {
   editor.hidden = false;
   if (delBtn) delBtn.hidden = true;
   if (saveBtn) saveBtn.hidden = true;
-  if (cancelBtn) cancelBtn.textContent = "Close";
+  if (cancelBtn) cancelBtn.textContent = t("close");
 
   const rule = matchByUrl.get(item.url) || null;
-  title.textContent = rule ? "Captured request (mocked)" : "Captured request";
+  title.textContent = rule ? t("capturedRequestMocked") : t("capturedRequest");
 
   const edUrl = document.getElementById("edUrl");
   const edKind = document.getElementById("edKind");
@@ -429,7 +458,7 @@ function showCapturePreview(item) {
 
   if (saveBtn) {
     saveBtn.hidden = false;
-    saveBtn.textContent = item.bodyLoadState === "loading" ? "Waiting for body…" : "Create mock";
+    saveBtn.textContent = item.bodyLoadState === "loading" ? t("waitingBody") : t("createMock");
     saveBtn.disabled = item.bodyLoadState === "loading";
   }
   highlightSelectedRows();
@@ -453,18 +482,18 @@ function enableEditorFields() {
   }
   const saveBtn = document.getElementById("edSave");
   if (saveBtn) {
-    saveBtn.textContent = "Save";
+    saveBtn.textContent = t("save");
     saveBtn.disabled = false;
   }
   const cancelBtn = document.getElementById("edCancel");
-  if (cancelBtn) cancelBtn.textContent = "Close";
+  if (cancelBtn) cancelBtn.textContent = t("close");
 }
 
 async function createMockFromCapture(cid) {
   let ent = captured.find((x) => x.cid === cid);
   if (!ent) return;
   if (ent.bodyLoadState === "loading") {
-    setStatus("Waiting for response body…", "muted");
+    setStatus(t("waitingBody"), "muted");
     const deadline = Date.now() + 8000;
     while (Date.now() < deadline) {
       ent = captured.find((x) => x.cid === cid);
@@ -493,14 +522,14 @@ async function createMockFromCapture(cid) {
   });
   if (res?.ok) {
     rulesCache = res.rules || rulesCache;
-    setStatus("Mock created — edit on the right", "ok");
+    setStatus(t("statusMockCreated"), "ok");
     setActiveView("rules");
     await refreshMatchMap();
     renderRulesTable();
     renderCapturedTable();
     if (res.rule) openRuleEditor(res.rule);
   } else {
-    setStatus(res?.error || "Add rule failed", "warn");
+    setStatus(res?.error || t("statusAddRuleFailed"), "warn");
   }
 }
 function parseHeadersJsonFromPanel(text) {
@@ -508,7 +537,7 @@ function parseHeadersJsonFromPanel(text) {
   if (!trimmed) return {};
   const parsed = JSON.parse(trimmed);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Headers must be a JSON object");
+    throw new Error(t("errHeadersObject"));
   }
   const out = {};
   for (const [k, v] of Object.entries(parsed)) out[String(k)] = String(v);
@@ -550,11 +579,11 @@ function openRuleEditor(rule, opts = {}) {
 
   if (empty) empty.hidden = true;
   editor.hidden = false;
-  if (title) title.textContent = "Edit rule";
+  if (title) title.textContent = t("editRule");
   if (delBtn) delBtn.hidden = false;
   if (saveBtn) {
     saveBtn.hidden = false;
-    saveBtn.textContent = "Save";
+    saveBtn.textContent = t("save");
     saveBtn.disabled = false;
   }
   const replayBtn = document.getElementById("edReplaySend");
@@ -621,11 +650,11 @@ function openNewRuleEditor() {
 
   if (empty) empty.hidden = true;
   editor.hidden = false;
-  if (title) title.textContent = "New rule";
+  if (title) title.textContent = t("newRule");
   if (delBtn) delBtn.hidden = true;
   if (saveBtn) {
     saveBtn.hidden = false;
-    saveBtn.textContent = "Create";
+    saveBtn.textContent = t("create");
     saveBtn.disabled = false;
   }
   if (replayBtn) replayBtn.hidden = true;
@@ -644,7 +673,7 @@ function openNewRuleEditor() {
   syncEdModalMode();
   highlightSelectedRows();
   setActiveView("rules");
-  setStatus("New rule — fill URL/pattern and response, then Create", "ok");
+  setStatus(t("statusNewRuleHint"), "ok");
   setTimeout(() => edUrl.focus(), 50);
 }
 
@@ -666,11 +695,11 @@ function renderRulesTable() {
   if (!body) return;
   const list = getFilteredRules();
   if (!rulesCache.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">No rules yet. Click <strong>Add rule</strong> above, mock a captured request, or use the toolbar popup.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">${t("rulesEmpty")}</td></tr>`;
     return;
   }
   if (!list.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">No rules match the filter. Clear the search or change the query.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">${t("rulesNoFilter")}</td></tr>`;
     return;
   }
   body.innerHTML = "";
@@ -678,26 +707,26 @@ function renderRulesTable() {
     if (!r) continue;
     const isReq = r.mockKind === "request";
     const kindTag = isReq
-      ? `<span class="tag kindReq" title="Outgoing request is overridden; response is real">REQ</span> `
-      : `<span class="tag kindRes" title="Response is faked in the app">RES</span> `;
+      ? `<span class="tag kindReq" title="${escapeAttr(t("tagReqTitle"))}">REQ</span> `
+      : `<span class="tag kindRes" title="${escapeAttr(t("tagResTitle"))}">RES</span> `;
     const incTag = r.urlIncluded
-      ? `<span class="kindInc" title="URL must contain this pattern (substring)">INC</span> `
+      ? `<span class="kindInc" title="${escapeAttr(t("tagIncTitle"))}">INC</span> `
       : "";
     const tr = document.createElement("tr");
     tr.setAttribute("data-id", r.id);
     if (selectedRuleId === r.id) tr.classList.add("selected");
     const short = (r.urlRegex || "").length > 100 ? (r.urlRegex || "").slice(0, 100) + "…" : r.urlRegex || "";
     const statusCell = isReq
-      ? `<td class="muted" title="Not used in request-override mode">—</td>`
+      ? `<td class="muted" title="${escapeAttr(t("statusNotUsedReqMode"))}">${t("statusNotUsed")}</td>`
       : `<td><input class="statusField statusIn" data-id="${escapeAttr(
           r.id
         )}" type="number" min="100" max="599" value="${Number(
         r.status
-      ) || 200}" title="Click away or Enter to apply" aria-label="HTTP status" /></td>`;
+      ) || 200}" title="${escapeAttr(t("statusClickApply"))}" aria-label="${escapeAttr(t("statusAriaHttp"))}" /></td>`;
     tr.innerHTML = `
       <td><input class="ruleOn" data-id="${escapeAttr(r.id)}" type="checkbox" ${r.enabled ? "checked" : ""} /></td>
       ${statusCell}
-      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || "(empty)")}</td>
+      <td class="urlCell" title="${escapeAttr(r.urlRegex || "")}">${kindTag}${incTag}${escapeHtml(short || t("urlEmpty"))}</td>
     `;
     tr.addEventListener("click", (e) => {
       if (e.target.closest("input")) return;
@@ -712,10 +741,10 @@ function renderRulesTable() {
       const res = await sendToBg({ type: "PATCH_RULE", id, enabled: e.target.checked });
       if (res?.ok) {
         rulesCache = res.rules || rulesCache;
-        setStatus("Updated", "ok");
+        setStatus(t("statusUpdated"), "ok");
       } else {
         e.target.checked = !e.target.checked;
-        setStatus(res?.error || "Patch failed", "warn");
+        setStatus(res?.error || t("statusPatchFailed"), "warn");
       }
     });
   }
@@ -732,11 +761,11 @@ function renderRulesTable() {
       const res = await sendToBg({ type: "PATCH_RULE", id, status: n });
       if (res?.ok) {
         rulesCache = res.rules || rulesCache;
-        setStatus("Status saved", "ok");
+        setStatus(t("statusStatusSaved"), "ok");
         await refreshMatchMap();
         renderCapturedTable();
       } else {
-        setStatus(res?.error || "Failed to save status", "warn");
+        setStatus(res?.error || t("statusSaveStatusFailed"), "warn");
       }
     };
     inp.addEventListener("change", apply);
@@ -760,11 +789,11 @@ function renderCapturedTable() {
   if (!body) return;
   const shown = getFilteredCaptured();
   if (!captured.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">No requests captured yet. Trigger API calls, or hard-reload the page with DevTools open (Network: disable cache).</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">${t("capturedEmpty")}</td></tr>`;
     return;
   }
   if (!shown.length) {
-    body.innerHTML = `<tr><td colspan="3" class="muted">No requests match the URL filter.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="muted">${t("capturedNoFilter")}</td></tr>`;
     return;
   }
   body.innerHTML = "";
@@ -784,7 +813,7 @@ function renderCapturedTable() {
       : "";
     tr.innerHTML = `
       <td>${escapeHtml(c.method)}</td>
-      <td>${c.status != null && c.status !== 0 ? escapeHtml(String(c.status)) : "—"}${bodyLabel ? `<span class="bodyHint" title="Response body capture">${bodyLabel}</span>` : ""}</td>
+      <td>${c.status != null && c.status !== 0 ? escapeHtml(String(c.status)) : t("statusNotUsed")}${bodyLabel ? `<span class="bodyHint" title="${escapeAttr(t("resBodyCaptureTitle"))}">${bodyLabel}</span>` : ""}</td>
       <td class="urlCell" title="${escapeAttr(c.url)}">${mockLabel}${escapeHtml(c.url)}</td>
     `;
     tr.addEventListener("click", () => {
@@ -882,8 +911,8 @@ const CURL_NO_ARG_FLAGS = new Set([
  */
 function parseCurlCommand(raw) {
   let text = normalizeCurlInput(raw);
-  if (!text) throw new Error("Paste a curl command first");
-  if (!/^curl\b/i.test(text)) throw new Error('Command must start with "curl"');
+  if (!text) throw new Error(t("errCurlEmpty"));
+  if (!/^curl\b/i.test(text)) throw new Error(t("errCurlMustStart"));
   text = text.replace(/^curl\s+/i, "");
   const tokens = tokenizeCurlCommand(text);
   let method = null;
@@ -922,7 +951,7 @@ function parseCurlCommand(raw) {
     ) {
       const val = tokens[++i] ?? "";
       if (val.startsWith("@")) {
-        throw new Error("curl file references (@file) are not supported — paste the body directly");
+        throw new Error(t("errCurlFile"));
       }
       body = val;
       bodyFromData = true;
@@ -955,7 +984,7 @@ function parseCurlCommand(raw) {
     }
   }
 
-  if (!url) throw new Error("Could not find URL in curl command");
+  if (!url) throw new Error(t("errCurlNoUrl"));
   if (!method) method = bodyFromData ? "POST" : "GET";
   return { method, url, headers, body: body != null ? body : "" };
 }
@@ -976,7 +1005,7 @@ function applyParsedCurl(parsed) {
 async function importCurlFromText(text, andSend = false) {
   const parsed = parseCurlCommand(text);
   applyParsedCurl(parsed);
-  setStatus(andSend ? "Imported curl — sending…" : "Imported curl into form", "ok");
+  setStatus(andSend ? t("statusCurlImportedSending") : t("statusCurlImported"), "ok");
   if (andSend) await executeSend();
 }
 
@@ -1018,7 +1047,7 @@ async function pasteCurlClipboard() {
     if (document.queryCommandSupported?.("paste")) {
       document.execCommand("paste");
       if (ta.value !== before && ta.value.trim()) {
-        setStatus("Pasted from clipboard", "ok");
+        setStatus(t("statusPasted"), "ok");
         return;
       }
     }
@@ -1029,12 +1058,12 @@ async function pasteCurlClipboard() {
   const fromPage = await readClipboardViaInspectedPage();
   if (fromPage != null && fromPage.trim()) {
     ta.value = fromPage;
-    setStatus("Pasted from clipboard (via inspected page)", "ok");
+    setStatus(t("statusPastedPage"), "ok");
     return;
   }
 
   ta.select();
-  setStatus("DevTools cannot read clipboard — press ⌘V / Ctrl+V here", "muted");
+  setStatus(t("statusPasteHint"), "muted");
 }
 
 function clearSendResponse() {
@@ -1044,7 +1073,7 @@ function clearSendResponse() {
   const rb = document.getElementById("sendResBody");
   const mockBtn = document.getElementById("sendMockBtn");
   if (meta) {
-    meta.textContent = "Send a request to see status, timing, and body.";
+    meta.textContent = t("sendMetaEmpty");
     meta.className = "sendMeta muted";
   }
   if (rh) rh.value = "";
@@ -1103,7 +1132,7 @@ function newSendForm() {
     savedId: null
   });
   clearSendResponse();
-  setStatus("New request", "ok");
+  setStatus(t("statusNewRequest"), "ok");
 }
 
 async function loadSavedRequests() {
@@ -1118,7 +1147,7 @@ function renderSavedRequestsList() {
   const list = document.getElementById("sendSavedList");
   if (!list) return;
   if (!savedRequestsCache.length) {
-    list.innerHTML = `<div class="muted">No saved requests yet. Fill the form and click Save.</div>`;
+    list.innerHTML = `<div class="muted">${t("savedEmptyHint")}</div>`;
     return;
   }
   list.innerHTML = "";
@@ -1127,11 +1156,11 @@ function renderSavedRequestsList() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "sendSavedItem" + (item.id === activeSavedRequestId ? " selected" : "");
-    btn.innerHTML = `<div class="sendSavedName">${escapeHtml(item.name || "(unnamed)")}</div><div class="sendSavedMeta">${escapeHtml(item.method || "GET")} · ${escapeHtml(item.url || "")}</div>`;
+    btn.innerHTML = `<div class="sendSavedName">${escapeHtml(item.name || t("savedUnnamed"))}</div><div class="sendSavedMeta">${escapeHtml(item.method || "GET")} · ${escapeHtml(item.url || "")}</div>`;
     btn.addEventListener("click", () => {
       fillSendFromSaved(item);
       clearSendResponse();
-      setStatus(`Loaded “${item.name}”`, "ok");
+      setStatus(t("statusLoadedSaved", { name: item.name || t("savedUnnamed") }), "ok");
     });
     list.appendChild(btn);
   }
@@ -1159,7 +1188,7 @@ async function saveCurrentRequest(forceNew = false) {
     return;
   }
   if (!req.url) {
-    setStatus("URL is required to save", "warn");
+    setStatus(t("statusUrlRequiredSave"), "warn");
     return;
   }
   const existing =
@@ -1169,11 +1198,11 @@ async function saveCurrentRequest(forceNew = false) {
   let name = existing?.name || "";
   if (forceNew || !existing) {
     const suggested = defaultSavedRequestName(req.url, req.method);
-    const entered = window.prompt(forceNew ? "Save as (name):" : "Name this request:", name || suggested);
+    const entered = window.prompt(forceNew ? t("promptSaveAs") : t("promptNameRequest"), name || suggested);
     if (entered == null) return;
     name = entered.trim();
     if (!name) {
-      setStatus("Name is required", "warn");
+      setStatus(t("statusNameRequired"), "warn");
       return;
     }
   }
@@ -1194,26 +1223,26 @@ async function saveCurrentRequest(forceNew = false) {
     if (res.request) activeSavedRequestId = res.request.id;
     renderSavedRequestsList();
     updateSendDeleteButton();
-    setStatus(forceNew || !existing ? "Request saved" : "Request updated", "ok");
+    setStatus(forceNew || !existing ? t("statusRequestSaved") : t("statusRequestUpdated"), "ok");
   } else {
-    setStatus(res?.error || "Save failed", "warn");
+    setStatus(res?.error || t("statusSaveFailed"), "warn");
   }
 }
 
 async function deleteActiveSavedRequest() {
   if (!activeSavedRequestId) return;
   const item = savedRequestsCache.find((r) => r && r.id === activeSavedRequestId);
-  const label = item?.name || "this request";
-  if (!window.confirm(`Delete saved request “${label}”?`)) return;
+  const label = item?.name || t("deleteSavedDefault");
+  if (!window.confirm(t("confirmDeleteSaved", { name: label }))) return;
   const res = await sendToBg({ type: "DELETE_SAVED_REQUEST", id: activeSavedRequestId });
   if (res?.ok) {
     savedRequestsCache = res.savedRequests || [];
     activeSavedRequestId = null;
     updateSendDeleteButton();
     renderSavedRequestsList();
-    setStatus("Saved request deleted", "ok");
+    setStatus(t("statusSavedDeleted"), "ok");
   } else {
-    setStatus(res?.error || "Delete failed", "warn");
+    setStatus(res?.error || t("statusDeleteFailed"), "warn");
   }
 }
 
@@ -1233,7 +1262,7 @@ function fillSendFromCapture(item) {
   });
   clearSendResponse();
   setActiveView("send");
-  setStatus("Loaded captured request into Send", "ok");
+  setStatus(t("statusLoadedCapture"), "ok");
 }
 
 function readSendRequestFromForm() {
@@ -1257,7 +1286,13 @@ function renderSendResult(result) {
   if (!meta || !rh || !rb) return;
 
   if (!result?.ok) {
-    meta.textContent = `Error (${result?.via || "?"}${result?.ms != null ? `, ${result.ms} ms` : ""}): ${result?.error || "Request failed"}`;
+    const via = result?.via || "?";
+    const ms = result?.ms != null ? `, ${result.ms} ms` : "";
+    meta.textContent = t("sendMetaError", {
+      via,
+      ms,
+      error: result?.error || t("statusRequestFailed")
+    });
     meta.className = "sendMeta warn";
     rh.value = "";
     rb.value = "";
@@ -1265,7 +1300,7 @@ function renderSendResult(result) {
     return;
   }
 
-  const viaLabel = result.via === "page" ? "via page" : "direct";
+  const viaLabel = result.via === "page" ? t("viaPage") : t("viaDirect");
   meta.textContent = `${result.status} ${result.statusText || ""} · ${result.ms} ms · ${viaLabel}`.trim();
   meta.className = result.status >= 200 && result.status < 400 ? "sendMeta ok" : "sendMeta warn";
   rh.value = JSON.stringify(result.headers || {}, null, 2);
@@ -1276,7 +1311,7 @@ function renderSendResult(result) {
 function sendViaPage({ method, url, headers, body }) {
   return new Promise((resolve) => {
     if (inspectedTabId == null) {
-      resolve({ ok: false, error: "No inspected tab — open DevTools on a normal page tab.", via: "page" });
+      resolve({ ok: false, error: t("statusNoInspectedSend"), via: "page" });
       return;
     }
     const hasBody = body && method !== "GET" && method !== "HEAD";
@@ -1300,12 +1335,12 @@ function sendViaPage({ method, url, headers, body }) {
       if (exceptionInfo && exceptionInfo.isException) {
         resolve({
           ok: false,
-          error: String(exceptionInfo.value || exceptionInfo.description || "Page eval failed"),
+          error: String(exceptionInfo.value || exceptionInfo.description || t("errPageEvalFailed")),
           via: "page"
         });
         return;
       }
-      resolve(result || { ok: false, error: "Empty result from page", via: "page" });
+      resolve(result || { ok: false, error: t("errPageEmptyResult"), via: "page" });
     });
   });
 }
@@ -1319,16 +1354,16 @@ async function executeSend() {
     return;
   }
   if (!req.url) {
-    setStatus("URL is required", "warn");
+    setStatus(t("statusUrlRequired"), "warn");
     return;
   }
 
   const sendBtn = document.getElementById("sendBtn");
   if (sendBtn) {
     sendBtn.disabled = true;
-    sendBtn.textContent = "Sending…";
+    sendBtn.textContent = t("sending");
   }
-  setStatus(getSendMode() === "page" ? "Sending via page…" : "Sending direct…");
+  setStatus(getSendMode() === "page" ? t("statusSendingPage") : t("statusSendingDirect"));
 
   try {
     let result;
@@ -1344,15 +1379,15 @@ async function executeSend() {
       });
     }
     renderSendResult(result);
-    if (result?.ok) setStatus("Response received", "ok");
-    else setStatus(result?.error || "Request failed", "warn");
+    if (result?.ok) setStatus(t("statusResponseReceived"), "ok");
+    else setStatus(result?.error || t("statusRequestFailed"), "warn");
   } catch (e) {
     renderSendResult({ ok: false, error: e?.message || String(e), via: getSendMode() });
     setStatus(e?.message || String(e), "warn");
   } finally {
     if (sendBtn) {
       sendBtn.disabled = false;
-      sendBtn.textContent = "Send";
+      sendBtn.textContent = t("sendBtn");
     }
   }
 }
@@ -1376,14 +1411,14 @@ async function createMockFromSendResponse() {
   });
   if (res?.ok) {
     rulesCache = res.rules || rulesCache;
-    setStatus("Mock rule created from Send response", "ok");
+    setStatus(t("statusMockFromSend"), "ok");
     setActiveView("rules");
     await refreshMatchMap();
     renderRulesTable();
     renderCapturedTable();
     if (res.rule) openRuleEditor(res.rule);
   } else {
-    setStatus(res?.error || "Create mock failed", "warn");
+    setStatus(res?.error || t("statusCreateMockFailed"), "warn");
   }
 }
 
@@ -1396,7 +1431,7 @@ function wireSend() {
   document.getElementById("sendSavedNew")?.addEventListener("click", () => newSendForm());
   document.getElementById("sendCurlPaste")?.addEventListener("click", () => void pasteCurlClipboard());
   document.getElementById("sendCurlInput")?.addEventListener("paste", () => {
-    setStatus("Pasted — click Import or Import & Send", "ok");
+    setStatus(t("statusPastedCurl"), "ok");
   });
   document.getElementById("sendCurlImport")?.addEventListener("click", () => {
     const text = document.getElementById("sendCurlInput")?.value || "";
@@ -1509,7 +1544,7 @@ async function buildRulePayloadFromEditor() {
   if (!edUrl) return null;
   const urlRegex = edUrl.value.trim();
   if (!urlRegex) {
-    setStatus("URL / pattern is required", "warn");
+    setStatus(t("statusUrlPatternRequired"), "warn");
     return null;
   }
   const kind = edKind?.value === "request" ? "request" : "response";
@@ -1570,13 +1605,13 @@ async function createRuleFromEditor() {
   if (res?.ok) {
     isCreatingNewRule = false;
     rulesCache = res.rules || rulesCache;
-    setStatus("Rule created", "ok");
+    setStatus(t("statusRuleCreated"), "ok");
     await refreshMatchMap();
     renderRulesTable();
     renderCapturedTable();
     if (res.rule) openRuleEditor(res.rule, { keepSelection: true });
   } else {
-    setStatus(res?.error || "Create failed", "warn");
+    setStatus(res?.error || t("statusCreateFailed"), "warn");
   }
 }
 
@@ -1602,7 +1637,7 @@ async function saveCurrentRule() {
     urlIncluded: !!edUrlIncluded?.checked
   };
   if (!payload.urlRegex) {
-    setStatus("URL / pattern is required", "warn");
+    setStatus(t("statusUrlPatternRequired"), "warn");
     return;
   }
   if (kind === "response") {
@@ -1648,14 +1683,14 @@ async function saveCurrentRule() {
   const res = await sendToBg(payload);
   if (res?.ok) {
     rulesCache = res.rules || rulesCache;
-    setStatus("Rule saved", "ok");
+    setStatus(t("statusRuleSaved"), "ok");
     await refreshMatchMap();
     renderRulesTable();
     renderCapturedTable();
     const updated = findRuleById(editingRuleId);
     if (updated) openRuleEditor(updated, { keepSelection: true });
   } else {
-    setStatus(res?.error || "Save failed", "warn");
+    setStatus(res?.error || t("statusSaveFailed"), "warn");
   }
 }
 
@@ -1689,9 +1724,9 @@ function wireDetailEditor() {
       renderRulesTable();
       await refreshMatchMap();
       renderCapturedTable();
-      setStatus("Rule deleted", "ok");
+      setStatus(t("statusRuleDeleted"), "ok");
     } else {
-      setStatus(res?.error || "Delete failed", "warn");
+      setStatus(res?.error || t("statusDeleteFailed"), "warn");
     }
   });
   document.addEventListener("keydown", (e) => {
@@ -1706,6 +1741,16 @@ function wireDetailEditor() {
 }
 
 async function main() {
+  await MockWeaveI18n.init();
+  MockWeaveI18n.apply(document);
+  MockWeaveI18n.wireLangSwitch(document);
+  window.addEventListener("mockweave-locale-change", onLocaleChanged);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.locale) {
+      void MockWeaveI18n.init().then(() => onLocaleChanged());
+    }
+  });
+
   wireFilterInputs();
   wireNavTabs();
   wireSplitter();
@@ -1713,37 +1758,28 @@ async function main() {
   wireSend();
   setActiveView("captured");
   inspectedTabId = getInspectedTabId();
-  const line = document.getElementById("tabIdLine");
-  if (line) {
-    line.textContent =
-      inspectedTabId != null
-        ? `Inspected tab id: ${inspectedTabId} — enable mocking above. Open this tab from the DevTools bar (MockWeave).`
-        : "Could not read inspected tab id. Re-open DevTools on a normal page tab.";
-  }
+  refreshTabIdLine();
 
   if (inspectedTabId == null) {
-    const t = document.getElementById("enabledToggle");
-    if (t) t.disabled = true;
+    const enabledEl = document.getElementById("enabledToggle");
+    if (enabledEl) enabledEl.disabled = true;
   }
 
   const enabledToggle = document.getElementById("enabledToggle");
   if (enabledToggle) {
     enabledToggle.addEventListener("change", async () => {
       if (inspectedTabId == null) return;
-      setStatus(enabledToggle.checked ? "Enabling…" : "Disabling…");
+      setStatus(enabledToggle.checked ? t("statusEnabling") : t("statusDisabling"));
       const res = await sendToBg({
         type: "SET_ENABLED",
         tabId: inspectedTabId,
         enabled: enabledToggle.checked
       });
       if (res?.ok) {
-        setStatus(
-          enabledToggle.checked ? "Mocking enabled for this tab" : "Mocking disabled for this tab",
-          "ok"
-        );
+        setStatus(enabledToggle.checked ? t("statusEnabled") : t("statusDisabled"), "ok");
       } else {
         enabledToggle.checked = !enabledToggle.checked;
-        setStatus(res?.error || "Failed to toggle", "warn");
+        setStatus(res?.error || t("statusToggleFailed"), "warn");
       }
     });
   }
@@ -1762,7 +1798,7 @@ async function main() {
   document.getElementById("refreshRules")?.addEventListener("click", async () => {
     await loadState();
     await renderAll();
-    setStatus("Refreshed", "ok");
+    setStatus(t("statusRefreshed"), "ok");
   });
 
   document.getElementById("addRuleBtn")?.addEventListener("click", () => {
@@ -1773,7 +1809,7 @@ async function main() {
   if (inspectedTabId != null) {
     await loadState();
   } else {
-    setStatus("Fix tab id to use this panel (see the line above).", "warn");
+    setStatus(t("statusFixTabId"), "warn");
   }
 
   seedFromHar();
@@ -1783,7 +1819,7 @@ async function main() {
       ingestDevToolsRequestFinished(req);
     });
   } catch (e) {
-    setStatus("Network API not available in this context.", "warn");
+    setStatus(t("statusNetworkUnavailable"), "warn");
   }
 
   await renderAll();
@@ -1801,8 +1837,8 @@ async function main() {
           const res = await sendToBg({ type: "GET_STATE", tabId: inspectedTabId });
           if (res?.ok) {
             rulesCache = Array.isArray(res.rules) ? res.rules : [];
-            const t = document.getElementById("enabledToggle");
-            if (t) t.checked = !!res.enabled;
+            const enabledEl = document.getElementById("enabledToggle");
+            if (enabledEl) enabledEl.checked = !!res.enabled;
           }
         }
         await renderAll();
