@@ -4,6 +4,7 @@ const t = (key, vars) => MockWeaveI18n.t(key, vars);
 
 function onLocaleChanged() {
   MockWeaveI18n.apply(document);
+  refreshPopupTabLine();
   for (const node of document.querySelectorAll("#rulesList .rule")) {
     updateRuleSummary(node);
     const collapsed = node.dataset.collapsed === "true";
@@ -273,12 +274,44 @@ function findPrevHadRequestBody(rules, index) {
 let activeTabId = null;
 let rulesModel = [];
 let saveTimer = null;
+let rulesSyncPaused = false;
+
+function refreshPopupTabLine() {
+  const line = document.getElementById("tabIdLine");
+  if (!line || activeTabId == null) return;
+  line.textContent = t("popupTabLine", { id: activeTabId });
+  line.title = t("popupTabHint");
+}
+
+async function reloadRulesFromStorage() {
+  if (activeTabId == null) return;
+  rulesSyncPaused = true;
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  try {
+    const state = await callBackground({ type: "GET_STATE", tabId: activeTabId });
+    if (state?.ok) {
+      rulesModel = Array.isArray(state.rules) ? state.rules : [];
+      renderRules(rulesModel, scheduleSave);
+    }
+  } finally {
+    rulesSyncPaused = false;
+  }
+}
 
 async function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
+    if (rulesSyncPaused) return;
     try {
-      const nextRules = collectRulesFromUI(rulesModel);
+      const uiRules = collectRulesFromUI(rulesModel);
+      const latest = await callBackground({ type: "GET_STATE", tabId: activeTabId });
+      const latestRules = Array.isArray(latest?.rules) ? latest.rules : [];
+      const uiIds = new Set(uiRules.map((r) => r.id));
+      const preserved = latestRules.filter((r) => r && !uiIds.has(r.id));
+      const nextRules = [...uiRules, ...preserved];
 
       // Quick validation:
       // - enabled rule must have non-empty matcher
@@ -322,6 +355,9 @@ async function init() {
     if (area === "local" && changes.theme) {
       void MockWeaveTheme.init();
     }
+    if (area === "local" && changes.rules) {
+      void reloadRulesFromStorage();
+    }
   });
 
   try {
@@ -341,6 +377,7 @@ async function init() {
   rulesModel = Array.isArray(state.rules) ? state.rules : [];
   const enabledToggle = byId("enabledToggle");
   enabledToggle.checked = !!state.enabled;
+  refreshPopupTabLine();
 
   enabledToggle.addEventListener("change", async () => {
     try {

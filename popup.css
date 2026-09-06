@@ -37,6 +37,11 @@ body {
   min-height: 18px;
 }
 
+.tabIdLine {
+  padding: 6px 12px 0 12px;
+  font-size: 11px;
+}
+
 main {
   padding: 12px;
 }
