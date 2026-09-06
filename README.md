@@ -42,7 +42,7 @@ The toolbar popup is still available for quick rule edits; the DevTools tab uses
 Full-height panel (like Redux DevTools): **Captured**, **Rules**, and **Send** (Replay & Send). Drag the divider to resize on Captured/Rules.
 
 - **Captured requests** — traffic while DevTools is open. Click a row to preview; double-click or **Replay in Send** loads it into Send; **Create mock** builds a rule from the captured response.
-- **Active rules** — **RES** = response mock, **REQ** = request override, **INC** = substring (“included”) match. Click a row to edit body/headers with the full panel height.
+- **Active rules** — **RES** = response mock, **REQ** = request override, **INC** = substring (“included”) match. **Add rule** creates a blank rule; click a row to edit.
 - **Send** — manual HTTP client (Postman-lite):
   - **Direct** — extension calls the real API (mocks do **not** apply; no page CORS).
   - **Via page** — `fetch` in the inspected tab (mocks and cookies apply; enable intercept first).
