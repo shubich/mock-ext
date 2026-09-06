@@ -6,6 +6,7 @@ import {
   normalizeRulesList,
   parseRulesImportJson
 } from "./lib/rules-io.js";
+import { matchRule } from "./lib/matching.js";
 
 const STORAGE_KEYS = {
   rules: "rules",
@@ -279,53 +280,6 @@ function base64EncodeUtf8(str) {
     bin += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
   }
   return btoa(bin);
-}
-
-function escapeRegExp(literal) {
-  return String(literal).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function parseUrlMatcher(input) {
-  const raw = String(input || "").trim();
-  if (!raw) return { mode: "none", source: "" };
-
-  if (raw.startsWith("re:")) {
-    return { mode: "regex", source: raw.slice(3).trim() };
-  }
-  if (raw.startsWith("lit:")) {
-    return { mode: "literal", source: raw.slice(4).trim() };
-  }
-
-  // Smart default: if user pasted full URL, treat it as literal.
-  if (/^https?:\/\//i.test(raw)) {
-    return { mode: "literal", source: raw };
-  }
-
-  return { mode: "regex", source: raw };
-}
-
-function matchRule(rules, url) {
-  for (const rule of rules) {
-    if (!rule || !rule.enabled) continue;
-    try {
-      if (rule.urlIncluded) {
-        const needle = String(rule.urlRegex || "").trim();
-        if (!needle) continue;
-        if (url.includes(needle)) return rule;
-        continue;
-      }
-      const matcher = parseUrlMatcher(rule.urlRegex);
-      if (matcher.mode === "none") continue;
-      const source =
-        matcher.mode === "literal" ? `^${escapeRegExp(matcher.source)}$` : matcher.source;
-
-      const re = new RegExp(source);
-      if (re.test(url)) return rule;
-    } catch (e) {
-      // invalid regex -> ignore
-    }
-  }
-  return null;
 }
 
 chrome.debugger.onEvent.addListener(async (source, method, params) => {
